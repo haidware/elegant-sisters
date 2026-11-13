@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
-import { BrowserRouter, Link, Navigate, Route, Routes, useNavigate, useParams } from 'react-router-dom'
-import { createClient, type Session } from '@supabase/supabase-js'
+import { BrowserRouter, Link, Navigate, Route, Routes, useParams } from 'react-router-dom'
+import { createClient } from '@supabase/supabase-js'
 import QRCode from 'qrcode'
 import {
   ArrowLeft,
@@ -71,6 +71,25 @@ function getErrorMessage(error: unknown) {
 function slugify(value: string) {
   return value.trim().normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
     .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+}
+
+async function adminRequest<T>(path: string, init?: RequestInit): Promise<T> {
+  const headers = new Headers(init?.headers)
+  if (init?.body && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json')
+  const response = await fetch(`/api/admin${path}`, {
+    ...init,
+    credentials: 'same-origin',
+    headers,
+  })
+  const payload = await response.json().catch(() => null) as { error?: string } | T | null
+  if (!response.ok) {
+    const message = payload && typeof payload === 'object' && 'error' in payload && typeof payload.error === 'string'
+      ? payload.error
+      : 'Admin request failed. Please try again.'
+    throw new Error(message)
+  }
+  if (payload === null) throw new Error('The admin server returned an invalid response.')
+  return payload as T
 }
 
 function App() {
@@ -760,73 +779,58 @@ function TreeExport({ group, members, photos, onClose }: { group: Group; members
 }
 
 function AdminPage() {
-  const [session, setSession] = useState<Session | null>(null)
-  const [authLoading, setAuthLoading] = useState(supabase !== null)
+  const [authLoading, setAuthLoading] = useState(true)
   const [isAdmin, setIsAdmin] = useState(false)
   const [authError, setAuthError] = useState('')
 
   useEffect(() => {
-    if (!supabase) {
-      return
-    }
     let active = true
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, nextSession) => {
-      setSession(nextSession)
-      setIsAdmin(false)
-      setAuthError('')
-    })
-    void supabase.auth.getSession().then(({ data, error }) => {
-      if (!active) return
-      if (error) setAuthError(error.message)
-      setSession(data.session)
-      setAuthLoading(false)
-    })
-    return () => { active = false; subscription.unsubscribe() }
+    void adminRequest<{ authenticated: boolean }>('/session')
+      .then(({ authenticated }) => {
+        if (active) setIsAdmin(authenticated)
+      })
+      .catch((reason: unknown) => {
+        if (active) setAuthError(getErrorMessage(reason))
+      })
+      .finally(() => {
+        if (active) setAuthLoading(false)
+      })
+    return () => { active = false }
   }, [])
 
-  useEffect(() => {
-    let active = true
-    async function checkAdmin() {
-      if (!supabase || !session?.user) return
-      const { data, error } = await supabase
-        .from('admin_users')
-        .select('user_id')
-        .eq('user_id', session.user.id)
-        .maybeSingle()
-      if (!active) return
-      if (error) setAuthError(error.message)
-      else if (!data) setAuthError('This account does not have admin access. Ask a project administrator to add it.')
-      else setIsAdmin(true)
+  async function signOut() {
+    try {
+      await adminRequest('/logout', { method: 'POST' })
+      setIsAdmin(false)
+      setAuthError('')
+    } catch (reason) {
+      setAuthError(getErrorMessage(reason))
     }
-    void checkAdmin()
-    return () => { active = false }
-  }, [session])
+  }
 
   if (!supabase) {
     return <main className="admin-page"><div className="admin-frame"><div className="admin-heading"><div className="eyebrow eyebrow-dark">MEMBER MANAGEMENT</div><h1>Your admin <em>studio.</em></h1><p>Manage your members and their photo catalogues.</p></div><ConnectionNotice /></div></main>
   }
   if (authLoading) return <main className="page-main loading-state"><LoaderCircle className="spin" size={22} /> Checking your admin access…</main>
-  if (!session) return <AdminLogin error={authError} onError={setAuthError} />
-  if (authError && !isAdmin) {
-    return <main className="admin-page"><div className="admin-frame"><div className="admin-heading"><div className="eyebrow eyebrow-dark">ADMIN ACCESS</div><h1>Almost <em>there.</em></h1></div><div className="inline-error" role="alert">{authError}</div><button className="button button-outline" onClick={() => void supabase.auth.signOut()} type="button"><LogOut size={15} /> Sign out</button></div></main>
-  }
-  if (!isAdmin) return <main className="page-main loading-state"><LoaderCircle className="spin" size={22} /> Verifying admin access…</main>
-  return <AdminDashboard />
+  if (!isAdmin) return <AdminLogin error={authError} onError={setAuthError} onSignedIn={() => { setIsAdmin(true); setAuthError('') }} />
+  return <AdminDashboard onSignOut={() => void signOut()} />
 }
 
-function AdminLogin({ error, onError }: { error: string; onError: (message: string) => void }) {
-  const [email, setEmail] = useState('')
+function AdminLogin({ error, onError, onSignedIn }: { error: string; onError: (message: string) => void; onSignedIn: () => void }) {
+  const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [working, setWorking] = useState(false)
 
   async function signIn(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (!supabase) return
     setWorking(true)
     onError('')
     try {
-      const { error: signInError } = await supabase.auth.signInWithPassword({ email, password })
-      if (signInError) onError(signInError.message)
+      await adminRequest('/login', {
+        method: 'POST',
+        body: JSON.stringify({ username, password }),
+      })
+      onSignedIn()
     } catch (reason) {
       onError(getErrorMessage(reason))
     } finally {
@@ -843,17 +847,17 @@ function AdminLogin({ error, onError }: { error: string; onError: (message: stri
         <p>Sign in to care for your sisterhood's family tree.</p>
         {error && <div className="inline-error" role="alert">{error}</div>}
         <form className="login-form" onSubmit={(event) => void signIn(event)}>
-          <label>Email address<input autoComplete="email" onChange={(event) => setEmail(event.target.value)} required type="email" value={email} /></label>
+          <label>Superuser username<input autoComplete="username" onChange={(event) => setUsername(event.target.value)} required type="text" value={username} /></label>
           <label>Password<input autoComplete="current-password" onChange={(event) => setPassword(event.target.value)} required type="password" value={password} /></label>
           <button className="button button-gold button-full" disabled={working} type="submit">{working ? <LoaderCircle className="spin" size={16} /> : <LockKeyhole size={16} />} Sign in to admin</button>
         </form>
-        <Link className="back-link login-back" to="/"><ArrowLeft size={15} /> Return to the family tree</Link>
+        <Link className="back-link login-back" to="/groups"><ArrowLeft size={15} /> Browse sisterhoods</Link>
       </div>
     </main>
   )
 }
 
-function AdminDashboard() {
+function AdminDashboard({ onSignOut }: { onSignOut: () => void }) {
   const [groups, setGroups] = useState<Group[]>([])
   const [selectedGroupId, setSelectedGroupId] = useState('')
   const [members, setMembers] = useState<Member[]>([])
@@ -869,37 +873,31 @@ function AdminDashboard() {
   const [catalogueMember, setCatalogueMember] = useState('')
   const [cataloguePhotos, setCataloguePhotos] = useState<File[]>([])
   const [working, setWorking] = useState(false)
-  const navigate = useNavigate()
   const selectedGroup = groups.find((group) => group.id === selectedGroupId) ?? null
 
   const loadGroups = useCallback(async () => {
-    if (!supabase) return
-    const { data, error: queryError } = await supabase
-      .from('groups')
-      .select('id, slug, name, description, sort_order, published')
-      .order('sort_order', { ascending: true })
-    if (queryError) setError(queryError.message)
-    else {
-      const currentGroups = data ?? []
+    try {
+      const currentGroups = await adminRequest<Group[]>('/groups')
       setGroups(currentGroups)
       setSelectedGroupId((current) => currentGroups.some((group) => group.id === current) ? current : currentGroups[0]?.id ?? '')
       if (!currentGroups.length) setLoading(false)
+    } catch (reason) {
+      setError(getErrorMessage(reason))
+      setLoading(false)
     }
   }, [])
 
   const loadMembers = useCallback(async (groupId: string) => {
-    if (!supabase || !groupId) return
-    const { data, error: queryError } = await supabase
-      .from('members')
-      .select('id, group_id, slug, full_name, role_title, bio, sort_order, published')
-      .eq('group_id', groupId)
-      .order('sort_order', { ascending: true })
-    if (queryError) setError(queryError.message)
-    else {
-      setMembers(data ?? [])
-      setCatalogueMember((current) => data?.some((member) => member.id === current) ? current : data?.[0]?.id ?? '')
+    if (!groupId) return
+    try {
+      const data = await adminRequest<Member[]>(`/members?groupId=${encodeURIComponent(groupId)}`)
+      setMembers(data)
+      setCatalogueMember((current) => data.some((member) => member.id === current) ? current : data[0]?.id ?? '')
+    } catch (reason) {
+      setError(getErrorMessage(reason))
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }, [])
 
   useEffect(() => { void Promise.resolve().then(loadGroups) }, [loadGroups])
@@ -911,16 +909,8 @@ function AdminDashboard() {
     if (!supabase) throw new Error('Supabase is not configured.')
     const failures: string[] = []
     let uploaded = 0
-    const { data: lastPhoto, error: photoQueryError } = await supabase
-      .from('member_photos')
-      .select('sort_order')
-      .eq('member_id', memberId)
-      .order('sort_order', { ascending: false })
-      .limit(1)
-      .maybeSingle()
-    if (photoQueryError) return { uploaded, failures: [photoQueryError.message] }
-    const sortOrder = (lastPhoto?.sort_order ?? -1) + 1
-    for (const [index, file] of files.entries()) {
+    const validFiles: File[] = []
+    for (const file of files) {
       if (!file.type.startsWith('image/')) {
         failures.push(`${file.name}: select an image file.`)
         continue
@@ -929,25 +919,50 @@ function AdminDashboard() {
         failures.push(`${file.name}: the maximum image size is 50 MB.`)
         continue
       }
-      const extension = file.name.match(/\.([a-zA-Z0-9]+)$/)?.[1] ?? 'image'
-      const storagePath = `${memberId}/${crypto.randomUUID()}.${extension}`
-      const { error: uploadError } = await supabase.storage
-        .from('member-photos')
-        .upload(storagePath, file, { contentType: file.type || 'application/octet-stream', upsert: false })
-      if (uploadError) {
-        failures.push(`${file.name}: ${uploadError.message}`)
+      validFiles.push(file)
+    }
+
+    for (let offset = 0; offset < validFiles.length; offset += 20) {
+      const batch = validFiles.slice(offset, offset + 20)
+      let uploadTickets: { path: string; token: string }[]
+      try {
+        const result = await adminRequest<{ uploads: { path: string; token: string }[] }>('/photos/sign', {
+          method: 'POST',
+          body: JSON.stringify({
+            memberId,
+            files: batch.map((file) => ({ name: file.name, type: file.type, size: file.size })),
+          }),
+        })
+        uploadTickets = result.uploads
+      } catch (reason) {
+        failures.push(...batch.map((file) => `${file.name}: ${getErrorMessage(reason)}`))
         continue
       }
-      const { data: publicUrl } = supabase.storage.from('member-photos').getPublicUrl(storagePath)
-      const { error: insertError } = await supabase.from('member_photos').insert({
-        member_id: memberId,
-        image_url: publicUrl.publicUrl,
-        storage_path: storagePath,
-        caption: null,
-        sort_order: sortOrder + index,
-      })
-      if (insertError) failures.push(`${file.name}: ${insertError.message}`)
-      else uploaded += 1
+
+      const uploadedPaths: string[] = []
+      for (const [index, file] of batch.entries()) {
+        const ticket = uploadTickets[index]
+        if (!ticket) {
+          failures.push(`${file.name}: upload authorization was not returned.`)
+          continue
+        }
+        const { error: uploadError } = await supabase.storage.from('member-photos')
+          .uploadToSignedUrl(ticket.path, ticket.token, file, { contentType: file.type })
+        if (uploadError) failures.push(`${file.name}: ${uploadError.message}`)
+        else uploadedPaths.push(ticket.path)
+      }
+
+      if (uploadedPaths.length) {
+        try {
+          const result = await adminRequest<{ uploaded: number }>('/photos/register', {
+            method: 'POST',
+            body: JSON.stringify({ memberId, paths: uploadedPaths }),
+          })
+          uploaded += result.uploaded
+        } catch (reason) {
+          failures.push(getErrorMessage(reason))
+        }
+      }
     }
     return { uploaded, failures }
   }
@@ -961,19 +976,17 @@ function AdminDashboard() {
     try {
       const sortOrder = members.length ? Math.max(...members.map((member) => member.sort_order)) + 1 : 0
       const slug = slugify(name)
-      const { data, error: insertError } = await supabase.from('members').insert({
-        group_id: selectedGroup.id,
-        full_name: name.trim(),
-        slug,
-        role_title: role.trim(),
-        bio: bio.trim() || null,
-        sort_order: sortOrder,
-        published: true,
-      }).select('id').single()
-      if (insertError) {
-        setError(insertError.message)
-        return
-      }
+      const data = await adminRequest<{ id: string }>('/members', {
+        method: 'POST',
+        body: JSON.stringify({
+          group_id: selectedGroup.id,
+          full_name: name.trim(),
+          slug,
+          role_title: role.trim(),
+          bio: bio.trim() || null,
+          sort_order: sortOrder,
+        }),
+      })
       let message = 'Member profile created.'
       if (newMemberPhotos.length) {
         const result = await uploadPhotos(data.id, newMemberPhotos)
@@ -1009,17 +1022,15 @@ function AdminDashboard() {
         setError(`"${slug}" is reserved for Membergram. Choose another group name.`)
         return
       }
-      const { data, error: insertError } = await supabase.from('groups').insert({
-        name: groupName.trim(),
-        slug,
-        description: groupDescription.trim() || null,
-        sort_order: groups.length,
-        published: true,
-      }).select('id').single()
-      if (insertError) {
-        setError(insertError.message)
-        return
-      }
+      const data = await adminRequest<{ id: string }>('/groups', {
+        method: 'POST',
+        body: JSON.stringify({
+          name: groupName.trim(),
+          slug,
+          description: groupDescription.trim() || null,
+          sort_order: groups.length,
+        }),
+      })
       setGroupName('')
       setGroupDescription('')
       setLoading(true)
@@ -1055,12 +1066,13 @@ function AdminDashboard() {
   }
 
   async function togglePublished(member: Member) {
-    if (!supabase) return
     setError('')
     try {
-      const { error: updateError } = await supabase.from('members').update({ published: !member.published }).eq('id', member.id)
-      if (updateError) setError(updateError.message)
-      else setMembers((current) => current.map((item) => item.id === member.id ? { ...item, published: !member.published } : item))
+      await adminRequest(`/members/${member.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ published: !member.published }),
+      })
+      setMembers((current) => current.map((item) => item.id === member.id ? { ...item, published: !member.published } : item))
     } catch (reason) {
       setError(getErrorMessage(reason))
     }
@@ -1071,7 +1083,7 @@ function AdminDashboard() {
       <div className="admin-frame">
         <div className="admin-topline">
           <div className="admin-heading"><div className="eyebrow eyebrow-dark"><span /> YOUR PRIVATE STUDIO</div><h1>Care for your <em>communities.</em></h1><p>Create groups, add members, preserve their photos, and share each story.</p></div>
-          <button className="button button-outline" onClick={async () => { await supabase?.auth.signOut(); navigate('/') }} type="button"><LogOut size={15} /> Sign out</button>
+          <button className="button button-outline" onClick={onSignOut} type="button"><LogOut size={15} /> Sign out</button>
         </div>
         {error && <div className="inline-error admin-alert" role="alert">{error}</div>}
         {success && <div className="success-message" role="status"><Check size={17} /> {success}</div>}

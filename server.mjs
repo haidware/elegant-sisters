@@ -1,6 +1,15 @@
 import { createServer } from 'node:http'
 import { readFile, stat } from 'node:fs/promises'
 import { extname, resolve, sep } from 'node:path'
+import { handleAdminApi } from './server/admin-api.mjs'
+
+if (process.env.NODE_ENV !== 'production') {
+  try {
+    process.loadEnvFile('.env.local')
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error
+  }
+}
 
 const distDirectory = resolve('dist')
 const mimeTypes = {
@@ -17,16 +26,20 @@ const mimeTypes = {
 }
 
 const server = createServer(async (request, response) => {
-  if (request.method !== 'GET' && request.method !== 'HEAD') {
-    response.writeHead(405, { Allow: 'GET, HEAD' }).end()
+  let pathname
+  let url
+  try {
+    url = new URL(request.url ?? '/', 'http://localhost')
+    pathname = decodeURIComponent(url.pathname)
+  } catch {
+    response.writeHead(400).end('Bad request')
     return
   }
 
-  let pathname
-  try {
-    pathname = decodeURIComponent(new URL(request.url ?? '/', 'http://localhost').pathname)
-  } catch {
-    response.writeHead(400).end('Bad request')
+  if (await handleAdminApi(request, response, url)) return
+
+  if (request.method !== 'GET' && request.method !== 'HEAD') {
+    response.writeHead(405, { Allow: 'GET, HEAD' }).end()
     return
   }
 

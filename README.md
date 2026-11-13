@@ -1,18 +1,16 @@
 # Membergram
 
-Membergram is a multi-group family-tree and photo-catalogue website. Visitors choose a group, view its landing page and family tree, browse member photo catalogues, and scan personal QR codes. An authenticated admin can create groups and member profiles and upload original image files without cropping or recompressing them.
+Membergram is a multi-group family-tree and photo-catalogue website. Visitors choose a group, view its landing page and family tree, browse member photo catalogues, and scan personal QR codes. The sole administrator signs in with Railway-configured superuser credentials and can create groups and member profiles and upload original image files without cropping or recompressing them.
 
 ## Set up the app
 
 1. Install dependencies with `npm install`.
 2. In the Supabase SQL Editor for your project, run [`supabase/schema.sql`](./supabase/schema.sql).
-3. Disable public sign-ups in Supabase Authentication if only invited administrators should have access.
-4. The schema grants admin access only to the configured Supabase Auth user ID. Ensure that account exists in Authentication → Users in this same project before running the schema. To change the sole admin account, update the UUID seed at the end of `supabase/schema.sql`.
+3. In Railway, configure `SUPER_USER_NAME` and `SUPER_USER_PASS_KEY` with the sole admin login credentials. Add `SUPABASE_SERVICE_ROLE_KEY` from the Supabase project's API settings. The server uses `SUPABASE_URL` if set, otherwise the existing `VITE_SUPABASE_URL`. These are server-only secrets: never prefix them with `VITE_` or expose them in client code. The service role key is required for authenticated admin operations and must remain private.
+4. Copy `.env.example` to `.env.local` and set the Supabase anon key and server-only values for local development. The example already contains the project URL. The anon key is public; do not use the service role key in the browser.
+5. To develop locally, start the API with `npm run dev:api` in one terminal and the website with `npm run dev` in another. The root URL (`/`) is the admin login. Use `/groups` to browse published groups; each group is available at `/<group-slug>`, with member catalogues at `/<group-slug>/<member-slug>`.
 
-5. Copy `.env.example` to `.env.local` and set `VITE_SUPABASE_ANON_KEY` to the project's Supabase anon/publishable key. The project URL is already filled in. The anon key is intended for browser use; never put a `service_role` key in this app.
-6. Start the website with `npm run dev`. The root URL (`/`) is the admin login. Use `/groups` to browse published groups; each group is available at `/<group-slug>`, with member catalogues at `/<group-slug>/<member-slug>`.
-
-The database schema enables row-level security. Public visitors can only read published groups, their published member profiles, and their photos; only UUIDs added to `admin_users` can change group/member data or upload to the public `member-photos` bucket.
+The database schema enables row-level security and grants browser clients read access only to published groups, members, and photos. Admin writes go through the Railway server, which authenticates the Railway superuser credentials and uses the server-only Supabase service role key.
 
 ## Original photo handling
 
