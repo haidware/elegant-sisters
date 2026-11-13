@@ -1,0 +1,48 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,500;0,600;0,700;1,500;1,600&display=swap');
+
+:root {
+  font-family: 'DM Sans', Arial, sans-serif;
+  color: #23332c;
+  background: #fcfaf6;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-optical-sizing: auto;
+  font-weight: 400;
+
+  --forest: #173c2c;
+  --forest-soft: #315d49;
+  --gold: #c99e4a;
+  --gold-light: #e5c785;
+  --ink: #22332c;
+  --muted: #788078;
+  --cream: #fcfaf6;
+  --line: #e9e3d8;
+  --serif: 'Playfair Display', Georgia, serif;
+  --shadow: 0 18px 55px rgba(37, 46, 37, .1);
+}
+
+* { box-sizing: border-box; }
+
+html { min-width: 320px; scroll-behavior: smooth; }
+
+body {
+  min-width: 320px;
+  margin: 0;
+  background: var(--cream);
+  color: var(--ink);
+  font-size: 15px;
+  line-height: 1.55;
+}
+
+button, input, textarea, select { font: inherit; }
+button, a, input, select, textarea { -webkit-tap-highlight-color: transparent; }
+button { color: inherit; }
+button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible {
+  outline: 3px solid rgba(201, 158, 74, .55);
+  outline-offset: 3px;
+}
+a { color: inherit; }
+img { display: block; max-width: 100%; }
+::selection { color: white; background: var(--forest-soft); }

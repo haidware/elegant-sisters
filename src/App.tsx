@@ -1,0 +1,1155 @@
+import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
+import { BrowserRouter, Link, Route, Routes, useNavigate, useParams } from 'react-router-dom'
+import { createClient, type Session } from '@supabase/supabase-js'
+import QRCode from 'qrcode'
+import {
+  ArrowLeft,
+  ArrowUpRight,
+  Camera,
+  Check,
+  ChevronDown,
+  CircleHelp,
+  Download,
+  ImagePlus,
+  Leaf,
+  LoaderCircle,
+  LockKeyhole,
+  LogOut,
+  Menu,
+  Plus,
+  Printer,
+  QrCode,
+  Search,
+  ShieldCheck,
+  Sparkles,
+  Upload,
+  X,
+} from 'lucide-react'
+import './App.css'
+
+type Group = {
+  id: string
+  slug: string
+  name: string
+  description: string | null
+  sort_order: number
+  published: boolean
+}
+
+type Member = {
+  id: string
+  group_id: string
+  slug: string
+  full_name: string
+  role_title: string
+  bio: string | null
+  sort_order: number
+  published: boolean
+}
+
+type MemberPhoto = {
+  id: string
+  member_id: string
+  image_url: string
+  storage_path: string
+  caption: string | null
+  sort_order: number
+  created_at: string
+}
+
+type MemberWithPhotos = Member & { photos: MemberPhoto[]; group: Group }
+
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+const supabase =
+  supabaseUrl && supabaseAnonKey ? createClient(supabaseUrl, supabaseAnonKey) : null
+
+function getErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : 'Something went wrong. Please try again.'
+}
+
+function App() {
+  return (
+    <BrowserRouter>
+      <div className="site-shell">
+        <SiteHeader />
+        <Routes>
+          <Route path="/" element={<GroupDirectoryPage />} />
+          <Route path="/groups/:groupSlug" element={<GroupPage />} />
+          <Route path="/groups/:groupSlug/members/:memberSlug" element={<MemberPage />} />
+          <Route path="/admin" element={<AdminPage />} />
+          <Route path="*" element={<NotFoundPage />} />
+        </Routes>
+        <SiteFooter />
+      </div>
+    </BrowserRouter>
+  )
+}
+
+function SiteHeader() {
+  const [menuOpen, setMenuOpen] = useState(false)
+
+  return (
+    <header className="site-header">
+      <Link aria-label="Membergram home" className="brand-lockup" to="/">
+        <span className="brand-mark"><Leaf size={19} strokeWidth={1.6} /></span>
+        <span className="brand-name">Membergram<span>Stories &amp; sisterhood</span></span>
+      </Link>
+      <button
+        aria-expanded={menuOpen}
+        aria-label={menuOpen ? 'Close menu' : 'Open menu'}
+        className="mobile-menu-button"
+        onClick={() => setMenuOpen(!menuOpen)}
+        type="button"
+      >
+        {menuOpen ? <X size={20} /> : <Menu size={20} />}
+      </button>
+      <nav aria-label="Main navigation" className={menuOpen ? 'main-nav is-open' : 'main-nav'}>
+        <Link onClick={() => setMenuOpen(false)} to="/">Our groups</Link>
+        <a href="/#about" onClick={() => setMenuOpen(false)}>Our story</a>
+        <Link className="nav-admin" onClick={() => setMenuOpen(false)} to="/admin">
+          <LockKeyhole size={15} /> Admin
+        </Link>
+      </nav>
+    </header>
+  )
+}
+
+function SiteFooter() {
+  return (
+    <footer className="site-footer">
+      <Link aria-label="Membergram home" className="footer-mark" to="/"><Leaf size={15} /></Link>
+      <p>Growing together, one story at a time.</p>
+      <span>Membergram · New Era Elegant Sisters International</span>
+    </footer>
+  )
+}
+
+function ConnectionNotice() {
+  return (
+    <div className="connection-notice" role="status">
+      <CircleHelp size={18} />
+      <div>
+        <strong>One last connection step</strong>
+        <p>Add your Supabase anon key to <code>.env.local</code> to connect member profiles and photo storage.</p>
+      </div>
+    </div>
+  )
+}
+
+function GroupDirectoryPage() {
+  const [groups, setGroups] = useState<Group[]>([])
+  const [memberCounts, setMemberCounts] = useState<Record<string, number>>({})
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    let active = true
+    async function loadGroups() {
+      if (!supabase) {
+        setLoading(false)
+        return
+      }
+      const { data: groupData, error: groupError } = await supabase
+        .from('groups')
+        .select('id, slug, name, description, sort_order, published')
+        .eq('published', true)
+        .order('sort_order', { ascending: true })
+      if (!active) return
+      if (groupError) {
+        setError(groupError.message)
+      } else {
+        const publishedGroups = groupData ?? []
+        setGroups(publishedGroups)
+        if (publishedGroups.length) {
+          const { data: memberData, error: memberError } = await supabase
+            .from('members')
+            .select('group_id')
+            .in('group_id', publishedGroups.map((group) => group.id))
+            .eq('published', true)
+          if (memberError) setError(memberError.message)
+          else {
+            const counts: Record<string, number> = {}
+            for (const member of memberData ?? []) counts[member.group_id] = (counts[member.group_id] ?? 0) + 1
+            setMemberCounts(counts)
+          }
+        }
+      }
+      setLoading(false)
+    }
+    void loadGroups()
+    return () => { active = false }
+  }, [])
+
+  return (
+    <main>
+      <section className="directory-hero">
+        <div className="eyebrow"><span /> A LIVING RECORD OF BELONGING <span /></div>
+        <h1>Find your <em>sisterhood.</em></h1>
+        <p>Choose a group to explore the people, stories and connections that make it special.</p>
+        <div className="directory-flourish"><Leaf size={18} /><span /><Leaf size={18} /></div>
+      </section>
+      <section className="group-directory" id="groups">
+        <div className="directory-heading">
+          <div><div className="eyebrow eyebrow-dark">OUR COMMUNITIES</div><h2>One family, <em>many branches.</em></h2></div>
+          <span className="member-count">{groups.length} {groups.length === 1 ? 'group' : 'groups'}</span>
+        </div>
+        {!supabase && <ConnectionNotice />}
+        {error && <div className="inline-error" role="alert">{error}</div>}
+        {loading ? (
+          <div className="loading-state"><LoaderCircle className="spin" size={22} /> Finding our communities…</div>
+        ) : groups.length ? (
+          <div className="group-grid">
+            {groups.map((group) => <GroupCard group={group} key={group.id} memberCount={memberCounts[group.id] ?? 0} />)}
+          </div>
+        ) : (
+          <div className="empty-tree">
+            <div className="empty-icon"><Leaf size={29} /></div>
+            <h3>{supabase ? 'Our first branch is waiting.' : 'A family of purpose & grace.'}</h3>
+            <p>{supabase ? 'Sign in to the admin area to create the first group and begin its family tree.' : 'Connect Supabase to open your sisterhood’s group pages and photo catalogues.'}</p>
+            <Link className="button button-gold" to="/admin"><LockKeyhole size={16} /> Open the admin area</Link>
+          </div>
+        )}
+      </section>
+      <section className="about-strip" id="about">
+        <div className="about-icon"><Sparkles size={21} /></div>
+        <div><div className="eyebrow eyebrow-dark">ONE SISTERHOOD, MANY STORIES</div><h2>Every branch <em>belongs.</em></h2></div>
+        <p>Choose a community to meet its members, explore their photo catalogues and share the family tree.</p>
+      </section>
+    </main>
+  )
+}
+
+function GroupCard({ group, memberCount }: { group: Group; memberCount: number }) {
+  return (
+    <Link className="group-card" to={`/groups/${group.slug}`}>
+      <div className="group-card-art">
+        <span className="group-card-seal"><Leaf size={29} /><small>EST. IN<br />SISTERHOOD</small></span>
+        <span className="group-card-leaf leaf-one"><Leaf size={24} /></span>
+        <span className="group-card-leaf leaf-two"><Leaf size={19} /></span>
+        <span className="group-card-leaf leaf-three"><Leaf size={15} /></span>
+      </div>
+      <div className="group-card-copy">
+        <div className="group-card-meta"><span><span className="status-dot" /> SISTERHOOD</span><span>{memberCount} {memberCount === 1 ? 'member' : 'members'}</span></div>
+        <h3>{group.name}</h3>
+        <p>{group.description || 'A community of purpose, connection and shared legacy.'}</p>
+        <span className="group-card-link">Explore this group <ArrowUpRight size={16} /></span>
+      </div>
+    </Link>
+  )
+}
+
+function GroupPage() {
+  const { groupSlug = '' } = useParams()
+  const [group, setGroup] = useState<Group | null>(null)
+  const [members, setMembers] = useState<Member[]>([])
+  const [photos, setPhotos] = useState<Record<string, string>>({})
+  const [loadedSlug, setLoadedSlug] = useState('')
+  const [error, setError] = useState('')
+  const [errorSlug, setErrorSlug] = useState('')
+  const [search, setSearch] = useState('')
+  const [exportOpen, setExportOpen] = useState(false)
+  const loading = loadedSlug !== groupSlug
+
+  useEffect(() => {
+    let active = true
+    async function loadGroup() {
+      if (!supabase) return
+      const { data: groupData, error: groupError } = await supabase
+        .from('groups')
+        .select('id, slug, name, description, sort_order, published')
+        .eq('slug', groupSlug)
+        .eq('published', true)
+        .maybeSingle()
+      if (!active) return
+      if (groupError) {
+        setError(groupError.message)
+        setErrorSlug(groupSlug)
+        setLoadedSlug(groupSlug)
+        return
+      }
+      if (!groupData) {
+        setGroup(null)
+        setMembers([])
+        setPhotos({})
+        setLoadedSlug(groupSlug)
+        return
+      }
+      setGroup(groupData)
+      const { data, error: queryError } = await supabase
+        .from('members')
+        .select('id, group_id, slug, full_name, role_title, bio, sort_order, published')
+        .eq('group_id', groupData.id)
+        .eq('published', true)
+        .order('sort_order', { ascending: true })
+      if (!active) return
+      if (queryError) {
+        setError(queryError.message)
+        setErrorSlug(groupSlug)
+      } else {
+        const publishedMembers = data ?? []
+        setMembers(publishedMembers)
+        setPhotos({})
+        if (publishedMembers.length) {
+          const { data: photoData, error: photoError } = await supabase
+            .from('member_photos')
+            .select('member_id, image_url')
+            .in('member_id', publishedMembers.map((member) => member.id))
+            .order('sort_order', { ascending: true })
+          if (active && photoError) {
+            setError(photoError.message)
+            setErrorSlug(groupSlug)
+          } else if (active) {
+            const firstPhotos: Record<string, string> = {}
+            for (const photo of photoData ?? []) {
+              if (!firstPhotos[photo.member_id]) firstPhotos[photo.member_id] = photo.image_url
+            }
+            setPhotos(firstPhotos)
+          }
+        }
+      }
+      if (active) setLoadedSlug(groupSlug)
+    }
+    void loadGroup()
+    return () => { active = false }
+  }, [groupSlug])
+
+  const filteredMembers = members.filter((member) =>
+    `${member.full_name} ${member.role_title}`.toLowerCase().includes(search.trim().toLowerCase()),
+  )
+
+  if (!supabase) return <main className="page-main"><ConnectionNotice /><Link className="back-link" to="/"><ArrowLeft size={15} /> Back to groups</Link></main>
+  if (loading) return <main className="page-main loading-state"><LoaderCircle className="spin" size={22} /> Opening this sisterhood…</main>
+  if (error && errorSlug === groupSlug) return <main className="page-main"><div className="inline-error" role="alert">{error}</div></main>
+  if (!group) return <NotFoundPage />
+
+  return (
+    <main>
+      <section className="group-hero">
+        <div className="hero-copy">
+          <div className="eyebrow"><span /> A LIVING RECORD OF BELONGING</div>
+          <h1>Every member.<br /><em>One shared legacy.</em></h1>
+          <p>Explore the people, stories and connections that make {group.name} special. Discover the family tree, meet each member and browse their personal photo collections.</p>
+          <div className="group-hero-actions">
+            <a className="button button-gold" href="#sisterhood">Explore members <ArrowUpRight size={16} /></a>
+            <button className="button button-white" disabled={!members.length} onClick={() => setExportOpen(true)} type="button"><Download size={15} /> Download family tree</button>
+          </div>
+          <div className="group-stats">
+            <div><strong>{members.length}</strong><span>Listed members</span></div>
+            <div><strong>01</strong><span>Shared community</span></div>
+            <div><strong>∞</strong><span>Stories to preserve</span></div>
+          </div>
+        </div>
+        <GroupPosterPreview group={group} members={members} photos={photos} />
+      </section>
+
+      <section className="sisterhood-section" id="sisterhood">
+        <div className="section-heading">
+          <div>
+            <div className="eyebrow eyebrow-dark"><span /> {group.name.toUpperCase()} FAMILY TREE</div>
+            <h2>Meet the <em>members.</em></h2>
+            <p>Every branch has a story. Discover the women who bring this community to life.</p>
+          </div>
+          <div className="tree-actions">
+            <label className="search-field">
+              <Search size={16} />
+              <input
+                aria-label="Search members"
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Find a sister"
+                value={search}
+              />
+            </label>
+            <button
+              className="button button-outline"
+              disabled={!members.length}
+              onClick={() => setExportOpen(true)}
+              type="button"
+            >
+              <QrCode size={16} /> Share the tree
+            </button>
+          </div>
+        </div>
+
+        {!supabase && <ConnectionNotice />}
+        {loading ? (
+          <div className="loading-state"><LoaderCircle className="spin" size={22} /> Growing this family tree…</div>
+        ) : filteredMembers.length ? (
+          <div className="tree-wrap">
+            <div className="tree-canopy" aria-hidden="true" />
+            <div className="member-tree">
+              {filteredMembers.map((member, index) => (
+                <MemberTreeCard groupSlug={group.slug} key={member.id} member={member} number={index + 1} photo={photos[member.id] ?? ''} />
+              ))}
+            </div>
+            <div className="tree-roots"><span /><Leaf size={19} /><span /></div>
+          </div>
+        ) : (
+          <div className="empty-tree">
+            <div className="empty-icon"><Leaf size={29} /></div>
+            <h3>{members.length ? 'No members found' : 'A new tree is taking root.'}</h3>
+            <p>{members.length ? 'Try another name or role.' : `${group.name} is ready to grow. Add the first member and their photos from the admin area.`}</p>
+            {!members.length && <Link className="button button-gold" to="/admin"><LockKeyhole size={16} /> Open the admin area</Link>}
+          </div>
+        )}
+      </section>
+
+      <section className="about-strip" id="about">
+        <div className="about-icon"><Sparkles size={21} /></div>
+        <div>
+          <div className="eyebrow eyebrow-dark">ONE COMMUNITY, MANY STORIES</div>
+          <h2>Celebrating every <em>branch.</em></h2>
+        </div>
+        <p>Choose a member to explore their photo catalogue and share their story with the family.</p>
+      </section>
+
+      {exportOpen && <TreeExport group={group} members={members} photos={photos} onClose={() => setExportOpen(false)} />}
+    </main>
+  )
+}
+
+function GroupPosterPreview({ group, members, photos }: { group: Group; members: Member[]; photos: Record<string, string> }) {
+  const previewMembers = members.slice(0, 35)
+  return (
+    <div aria-label={`${group.name} family tree preview`} className="group-poster-wrap">
+      <div className="group-poster">
+        <div className="group-poster-border">
+          <div className="group-poster-heading"><span>✦ &nbsp; ✦ &nbsp; ✦</span><small>{group.name.toUpperCase()}</small><b>OUR FAMILY TREE</b></div>
+          {previewMembers.length ? (
+            <div className="group-poster-members">
+              {previewMembers.map((member, index) => (
+                <Link aria-label={`View ${member.full_name}'s catalogue`} className="group-poster-member" key={member.id} to={`/groups/${group.slug}/members/${member.slug}`}>
+                  <span className="group-poster-avatar">
+                    {photos[member.id] ? <img alt="" crossOrigin="anonymous" src={photos[member.id]} /> : <Camera size={17} />}
+                    <i>{index + 1}</i>
+                  </span>
+                  <strong>{member.full_name}</strong>
+                </Link>
+              ))}
+            </div>
+          ) : (
+            <div className="group-poster-empty"><span><Leaf size={28} /></span><b>Your members will grow here.</b><small>Add the first member in the admin studio.</small></div>
+          )}
+          <div className="group-poster-footer"><span />ROOTED IN SISTERHOOD · GROWING TOGETHER<span /></div>
+        </div>
+      </div>
+      <span className="poster-caption"><QrCode size={13} /> A living family tree · {members.length} {members.length === 1 ? 'member' : 'members'}</span>
+    </div>
+  )
+}
+
+function MemberTreeCard({ groupSlug, member, number, photo }: { groupSlug: string; member: Member; number: number; photo: string }) {
+  const [photoError, setPhotoError] = useState(false)
+
+  return (
+    <Link className="member-card" to={`/groups/${groupSlug}/members/${member.slug}`}>
+      <span className="member-number">{number}</span>
+      <span className="portrait-frame">
+        {photo && !photoError ? (
+          <img alt="" crossOrigin="anonymous" onError={() => setPhotoError(true)} src={photo} />
+        ) : (
+          <span className="portrait-placeholder"><Camera size={24} strokeWidth={1.3} /></span>
+        )}
+      </span>
+      <span className="member-name">{member.full_name}</span>
+      <span className="member-role">{member.role_title || 'Sister'}</span>
+      <span className="member-card-arrow"><ArrowUpRight size={13} /></span>
+    </Link>
+  )
+}
+
+function MemberPage() {
+  const { groupSlug = '', memberSlug = '' } = useParams()
+  const [member, setMember] = useState<MemberWithPhotos | null>(null)
+  const [loadedKey, setLoadedKey] = useState('')
+  const [error, setError] = useState('')
+  const [errorKey, setErrorKey] = useState('')
+  const [activePhoto, setActivePhoto] = useState<MemberPhoto | null>(null)
+  const pageKey = `${groupSlug}/${memberSlug}`
+  const loading = loadedKey !== pageKey
+
+  useEffect(() => {
+    let active = true
+    async function loadMember() {
+      if (!supabase) return
+      const { data: groupData, error: groupError } = await supabase
+        .from('groups')
+        .select('id, slug, name, description, sort_order, published')
+        .eq('slug', groupSlug)
+        .eq('published', true)
+        .maybeSingle()
+      if (!active) return
+      if (groupError) {
+        setError(groupError.message)
+        setErrorKey(pageKey)
+        setLoadedKey(pageKey)
+        return
+      }
+      if (!groupData) {
+        setMember(null)
+        setLoadedKey(pageKey)
+        return
+      }
+      const { data: memberData, error: memberError } = await supabase
+        .from('members')
+        .select('id, group_id, slug, full_name, role_title, bio, sort_order, published')
+        .eq('group_id', groupData.id)
+        .eq('slug', memberSlug)
+        .eq('published', true)
+        .maybeSingle()
+      if (!active) return
+      if (memberError) {
+        setError(memberError.message)
+        setErrorKey(pageKey)
+      } else if (memberData) {
+        const { data: photos, error: photoError } = await supabase
+          .from('member_photos')
+          .select('id, member_id, image_url, storage_path, caption, sort_order, created_at')
+          .eq('member_id', memberData.id)
+          .order('sort_order', { ascending: true })
+        if (active) {
+          if (photoError) {
+            setError(photoError.message)
+            setErrorKey(pageKey)
+          }
+          else setMember({ ...memberData, group: groupData, photos: photos ?? [] })
+        }
+      } else {
+        setMember(null)
+      }
+      if (active) setLoadedKey(pageKey)
+    }
+    void loadMember()
+    return () => { active = false }
+  }, [groupSlug, memberSlug, pageKey])
+
+  if (!supabase) return <main className="page-main"><ConnectionNotice /><Link className="back-link" to="/"><ArrowLeft size={15} /> Back to groups</Link></main>
+  if (loading) return <main className="page-main loading-state"><LoaderCircle className="spin" size={22} /> Opening their story…</main>
+  if (error && errorKey === pageKey) return <main className="page-main"><div className="inline-error" role="alert">{error}</div></main>
+  if (!member) return <NotFoundPage />
+
+  return (
+    <main className="profile-page">
+      <div className="profile-back"><Link className="back-link" to={`/groups/${member.group.slug}`}><ArrowLeft size={15} /> Back to {member.group.name}</Link></div>
+      <section className="profile-intro">
+        <span className="profile-kicker"><span /> A MEMBER'S STORY <span /></span>
+        <div className="profile-avatar">
+          {member.photos[0] ? <img alt="" crossOrigin="anonymous" src={member.photos[0].image_url} /> : <Camera size={32} />}
+        </div>
+        <h1>{member.full_name}</h1>
+        <p className="profile-role">{member.role_title || 'Sister'}</p>
+        {member.bio && <p className="profile-bio">{member.bio}</p>}
+        <div className="profile-meta"><span><Camera size={14} /> {member.photos.length} {member.photos.length === 1 ? 'photo' : 'photos'} in their catalogue</span></div>
+      </section>
+
+      <section className="catalogue-section">
+        <div className="catalogue-heading">
+          <div><div className="eyebrow eyebrow-dark">HER MOMENTS</div><h2>A catalogue of <em>memories.</em></h2></div>
+        </div>
+        {member.photos.length ? (
+          <div className="photo-gallery">
+            {member.photos.map((photo) => (
+              <button className="catalogue-photo" key={photo.id} onClick={() => setActivePhoto(photo)} type="button">
+                <img alt={photo.caption || `Photo of ${member.full_name}`} crossOrigin="anonymous" loading="lazy" src={photo.image_url} />
+                {photo.caption && <span>{photo.caption}</span>}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <div className="gallery-empty"><ImagePlus size={23} /><p>Their photo catalogue is ready for its first memory.</p></div>
+        )}
+      </section>
+      <ShareMember member={member} />
+      {activePhoto && <PhotoLightbox onClose={() => setActivePhoto(null)} photo={activePhoto} />}
+    </main>
+  )
+}
+
+function ShareMember({ member }: { member: MemberWithPhotos }) {
+  const [copied, setCopied] = useState(false)
+  const [copyError, setCopyError] = useState('')
+  const shareUrl = `${window.location.origin}/groups/${member.group.slug}/members/${member.slug}`
+
+  async function copyLink() {
+    try {
+      await navigator.clipboard.writeText(shareUrl)
+      setCopied(true)
+      setCopyError('')
+      window.setTimeout(() => setCopied(false), 2000)
+    } catch (error) {
+      setCopyError(getErrorMessage(error))
+    }
+  }
+
+  return (
+    <section className="profile-share">
+      <div className="share-qr"><QRCodeGraphic url={shareUrl} size={112} /></div>
+      <div><div className="eyebrow eyebrow-dark">PASS THEIR STORY ALONG</div><h2>Share their <em>catalogue.</em></h2><p>Scan their QR code or copy their personal link.</p></div>
+      <button className="button button-outline" onClick={() => void copyLink()} type="button">{copied ? <Check size={16} /> : <ArrowUpRight size={16} />}{copied ? 'Copied' : 'Copy profile link'}</button>
+      {copyError && <p className="copy-error" role="alert">{copyError}</p>}
+    </section>
+  )
+}
+
+function QRCodeGraphic({ url, size }: { url: string; size: number }) {
+  const [dataUrl, setDataUrl] = useState('')
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    let active = true
+    QRCode.toDataURL(url, { width: size, margin: 1, errorCorrectionLevel: 'M', color: { dark: '#173c2c', light: '#ffffff' } })
+      .then((result) => { if (active) setDataUrl(result) })
+      .catch((reason: unknown) => { if (active) setError(getErrorMessage(reason)) })
+    return () => { active = false }
+  }, [size, url])
+
+  if (error) return <span className="qr-error" title={error}>QR unavailable</span>
+  if (!dataUrl) return <span className="qr-loading"><LoaderCircle className="spin" size={17} /></span>
+  return <img alt={`QR code for ${url}`} height={size} src={dataUrl} width={size} />
+}
+
+function PhotoLightbox({ photo, onClose }: { photo: MemberPhoto; onClose: () => void }) {
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) { if (event.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [onClose])
+
+  return (
+    <div className="lightbox" onClick={onClose} role="presentation">
+      <button aria-label="Close photo" className="lightbox-close" onClick={onClose} type="button"><X size={22} /></button>
+      <img alt={photo.caption || 'Member catalogue photo'} crossOrigin="anonymous" onClick={(event) => event.stopPropagation()} src={photo.image_url} />
+      {photo.caption && <p>{photo.caption}</p>}
+    </div>
+  )
+}
+
+function TreeExport({ group, members, photos, onClose }: { group: Group; members: Member[]; photos: Record<string, string>; onClose: () => void }) {
+  const posterRef = useRef<HTMLDivElement>(null)
+  const [qrCodes, setQrCodes] = useState<Record<string, string>>({})
+  const [working, setWorking] = useState(false)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    let active = true
+    async function loadQRCodes() {
+      const qrEntries = await Promise.all(members.map(async (member) => [
+        member.id,
+        await QRCode.toDataURL(`${window.location.origin}/groups/${group.slug}/members/${member.slug}`, {
+          width: 110,
+          margin: 0,
+          errorCorrectionLevel: 'M',
+          color: { dark: '#173c2c', light: '#ffffff' },
+        }),
+      ] as const))
+      if (active) {
+        setQrCodes(Object.fromEntries(qrEntries))
+      }
+    }
+    void loadQRCodes().catch((reason: unknown) => { if (active) setError(getErrorMessage(reason)) })
+    return () => { active = false }
+  }, [group.slug, members])
+
+  async function exportImage(kind: 'png' | 'pdf') {
+    if (!posterRef.current) return
+    setWorking(true)
+    setError('')
+    try {
+      const [{ default: html2canvas }, { default: jsPDF }] = await Promise.all([
+        import('html2canvas'),
+        import('jspdf'),
+      ])
+      await Promise.all(Array.from(posterRef.current.querySelectorAll('img')).map((image) => {
+        if (image.complete) {
+          return image.naturalWidth > 0
+            ? Promise.resolve()
+            : Promise.reject(new Error('A poster image could not be loaded. Check that the image is publicly accessible in Supabase Storage.'))
+        }
+        return new Promise<void>((resolve, reject) => {
+          image.addEventListener('load', () => resolve(), { once: true })
+          image.addEventListener('error', () => reject(new Error('A poster image could not be loaded. Check that the image is publicly accessible in Supabase Storage.')), { once: true })
+        })
+      }))
+      const canvas = await html2canvas(posterRef.current, { backgroundColor: '#fffaf0', scale: 2, useCORS: true, logging: false })
+      const fileName = `${group.slug}-family-tree`
+      if (kind === 'png') {
+        const anchor = document.createElement('a')
+        anchor.download = `${fileName}.png`
+        anchor.href = canvas.toDataURL('image/png')
+        anchor.click()
+      } else {
+        const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a3' })
+        const pageWidth = pdf.internal.pageSize.getWidth()
+        const pageHeight = pdf.internal.pageSize.getHeight()
+        const scale = Math.min(pageWidth / canvas.width, pageHeight / canvas.height)
+        const width = canvas.width * scale
+        const height = canvas.height * scale
+        pdf.addImage(canvas.toDataURL('image/png'), 'PNG', (pageWidth - width) / 2, (pageHeight - height) / 2, width, height)
+        pdf.save(`${fileName}.pdf`)
+      }
+    } catch (reason) {
+      setError(getErrorMessage(reason))
+    } finally {
+      setWorking(false)
+    }
+  }
+
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) { if (event.key === 'Escape' && !working) onClose() }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [onClose, working])
+
+  const ready = members.length > 0 && Object.keys(qrCodes).length === members.length
+
+  return (
+    <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget && !working) onClose() }} role="presentation">
+      <section aria-labelledby="export-title" aria-modal="true" className="export-modal" role="dialog">
+        <div className="modal-heading">
+          <div><div className="eyebrow eyebrow-dark">SHARE YOUR SISTERHOOD</div><h2 id="export-title">The family tree, <em>to go.</em></h2><p>Each member's portrait and QR code links to their photo catalogue.</p></div>
+          <button aria-label="Close export" className="icon-button" disabled={working} onClick={onClose} type="button"><X size={20} /></button>
+        </div>
+        {error && <div className="inline-error" role="alert">{error}</div>}
+        <div className="poster-preview-scroll">
+          <div className="tree-poster" ref={posterRef}>
+            <div className="poster-title">
+              <span className="poster-flourish">✦ &nbsp; ✦ &nbsp; ✦</span>
+              <p>{group.name}</p>
+              <h3>FAMILY<br />TREE</h3>
+              <span className="poster-rule" />
+              <small>ROOTED IN SISTERHOOD · GROWING TOGETHER</small>
+            </div>
+            <div className="poster-members">
+              {members.map((member, index) => (
+                <div className="poster-member" key={member.id}>
+                  <div className="poster-portrait">
+                    {photos[member.id] ? <img alt="" crossOrigin="anonymous" src={photos[member.id]} /> : <Camera size={20} />}
+                    <span>{index + 1}</span>
+                  </div>
+                  <strong>{member.full_name}</strong>
+                  <small>{member.role_title || 'Sister'}</small>
+                  {qrCodes[member.id] ? <img alt={`Scan to view ${member.full_name}'s catalogue`} className="poster-qr" src={qrCodes[member.id]} /> : <span className="poster-qr-placeholder" />}
+                  <span className="poster-scan">SCAN HER STORY</span>
+                </div>
+              ))}
+            </div>
+            <div className="poster-footer">A SISTERHOOD OF PURPOSE, LOVE &amp; LEGACY</div>
+          </div>
+        </div>
+        <div className="export-actions">
+          <span><QrCode size={16} /> {members.length} personal QR {members.length === 1 ? 'code' : 'codes'}</span>
+          <div>
+            <button className="button button-outline" disabled={!ready || working} onClick={() => void exportImage('png')} type="button">
+              {working ? <LoaderCircle className="spin" size={16} /> : <Download size={16} />} Download image
+            </button>
+            <button className="button button-gold" disabled={!ready || working} onClick={() => void exportImage('pdf')} type="button">
+              {working ? <LoaderCircle className="spin" size={16} /> : <Printer size={16} />} Save as PDF
+            </button>
+          </div>
+        </div>
+        {!ready && !error && <p className="export-hint"><LoaderCircle className="spin" size={14} /> Preparing portraits and QR codes…</p>}
+      </section>
+    </div>
+  )
+}
+
+function AdminPage() {
+  const [session, setSession] = useState<Session | null>(null)
+  const [authLoading, setAuthLoading] = useState(supabase !== null)
+  const [isAdmin, setIsAdmin] = useState(false)
+  const [authError, setAuthError] = useState('')
+
+  useEffect(() => {
+    if (!supabase) {
+      return
+    }
+    let active = true
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      setSession(nextSession)
+      setIsAdmin(false)
+      setAuthError('')
+    })
+    void supabase.auth.getSession().then(({ data, error }) => {
+      if (!active) return
+      if (error) setAuthError(error.message)
+      setSession(data.session)
+      setAuthLoading(false)
+    })
+    return () => { active = false; subscription.unsubscribe() }
+  }, [])
+
+  useEffect(() => {
+    let active = true
+    async function checkAdmin() {
+      if (!supabase || !session?.user) return
+      const { data, error } = await supabase
+        .from('admin_users')
+        .select('user_id')
+        .eq('user_id', session.user.id)
+        .maybeSingle()
+      if (!active) return
+      if (error) setAuthError(error.message)
+      else if (!data) setAuthError('This account does not have admin access. Ask a project administrator to add it.')
+      else setIsAdmin(true)
+    }
+    void checkAdmin()
+    return () => { active = false }
+  }, [session])
+
+  if (!supabase) {
+    return <main className="admin-page"><div className="admin-frame"><div className="admin-heading"><div className="eyebrow eyebrow-dark">MEMBER MANAGEMENT</div><h1>Your admin <em>studio.</em></h1><p>Manage your members and their photo catalogues.</p></div><ConnectionNotice /></div></main>
+  }
+  if (authLoading) return <main className="page-main loading-state"><LoaderCircle className="spin" size={22} /> Checking your admin access…</main>
+  if (!session) return <AdminLogin error={authError} onError={setAuthError} />
+  if (authError && !isAdmin) {
+    return <main className="admin-page"><div className="admin-frame"><div className="admin-heading"><div className="eyebrow eyebrow-dark">ADMIN ACCESS</div><h1>Almost <em>there.</em></h1></div><div className="inline-error" role="alert">{authError}</div><button className="button button-outline" onClick={() => void supabase.auth.signOut()} type="button"><LogOut size={15} /> Sign out</button></div></main>
+  }
+  if (!isAdmin) return <main className="page-main loading-state"><LoaderCircle className="spin" size={22} /> Verifying admin access…</main>
+  return <AdminDashboard />
+}
+
+function AdminLogin({ error, onError }: { error: string; onError: (message: string) => void }) {
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [working, setWorking] = useState(false)
+
+  async function signIn(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!supabase) return
+    setWorking(true)
+    onError('')
+    try {
+      const { error: signInError } = await supabase.auth.signInWithPassword({ email, password })
+      if (signInError) onError(signInError.message)
+    } catch (reason) {
+      onError(getErrorMessage(reason))
+    } finally {
+      setWorking(false)
+    }
+  }
+
+  return (
+    <main className="admin-page">
+      <div className="login-card">
+        <div className="login-mark"><ShieldCheck size={22} /></div>
+        <div className="eyebrow eyebrow-dark">PRIVATE MEMBER SPACE</div>
+        <h1>Welcome <em>back.</em></h1>
+        <p>Sign in to care for your sisterhood's family tree.</p>
+        {error && <div className="inline-error" role="alert">{error}</div>}
+        <form className="login-form" onSubmit={(event) => void signIn(event)}>
+          <label>Email address<input autoComplete="email" onChange={(event) => setEmail(event.target.value)} required type="email" value={email} /></label>
+          <label>Password<input autoComplete="current-password" onChange={(event) => setPassword(event.target.value)} required type="password" value={password} /></label>
+          <button className="button button-gold button-full" disabled={working} type="submit">{working ? <LoaderCircle className="spin" size={16} /> : <LockKeyhole size={16} />} Sign in to admin</button>
+        </form>
+        <Link className="back-link login-back" to="/"><ArrowLeft size={15} /> Return to the family tree</Link>
+      </div>
+    </main>
+  )
+}
+
+function AdminDashboard() {
+  const [groups, setGroups] = useState<Group[]>([])
+  const [selectedGroupId, setSelectedGroupId] = useState('')
+  const [members, setMembers] = useState<Member[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
+  const [groupName, setGroupName] = useState('')
+  const [groupDescription, setGroupDescription] = useState('')
+  const [name, setName] = useState('')
+  const [role, setRole] = useState('')
+  const [bio, setBio] = useState('')
+  const [newMemberPhotos, setNewMemberPhotos] = useState<File[]>([])
+  const [catalogueMember, setCatalogueMember] = useState('')
+  const [cataloguePhotos, setCataloguePhotos] = useState<File[]>([])
+  const [working, setWorking] = useState(false)
+  const navigate = useNavigate()
+  const selectedGroup = groups.find((group) => group.id === selectedGroupId) ?? null
+
+  const loadGroups = useCallback(async () => {
+    if (!supabase) return
+    const { data, error: queryError } = await supabase
+      .from('groups')
+      .select('id, slug, name, description, sort_order, published')
+      .order('sort_order', { ascending: true })
+    if (queryError) setError(queryError.message)
+    else {
+      const currentGroups = data ?? []
+      setGroups(currentGroups)
+      setSelectedGroupId((current) => currentGroups.some((group) => group.id === current) ? current : currentGroups[0]?.id ?? '')
+      if (!currentGroups.length) setLoading(false)
+    }
+  }, [])
+
+  const loadMembers = useCallback(async (groupId: string) => {
+    if (!supabase || !groupId) return
+    const { data, error: queryError } = await supabase
+      .from('members')
+      .select('id, group_id, slug, full_name, role_title, bio, sort_order, published')
+      .eq('group_id', groupId)
+      .order('sort_order', { ascending: true })
+    if (queryError) setError(queryError.message)
+    else {
+      setMembers(data ?? [])
+      setCatalogueMember((current) => data?.some((member) => member.id === current) ? current : data?.[0]?.id ?? '')
+    }
+    setLoading(false)
+  }, [])
+
+  useEffect(() => { void Promise.resolve().then(loadGroups) }, [loadGroups])
+  useEffect(() => {
+    if (selectedGroupId) void Promise.resolve().then(() => loadMembers(selectedGroupId))
+  }, [loadMembers, selectedGroupId])
+
+  async function uploadPhotos(memberId: string, files: File[]) {
+    if (!supabase) throw new Error('Supabase is not configured.')
+    const failures: string[] = []
+    let uploaded = 0
+    const { data: lastPhoto, error: photoQueryError } = await supabase
+      .from('member_photos')
+      .select('sort_order')
+      .eq('member_id', memberId)
+      .order('sort_order', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    if (photoQueryError) return { uploaded, failures: [photoQueryError.message] }
+    const sortOrder = (lastPhoto?.sort_order ?? -1) + 1
+    for (const [index, file] of files.entries()) {
+      if (!file.type.startsWith('image/')) {
+        failures.push(`${file.name}: select an image file.`)
+        continue
+      }
+      if (file.size > 50 * 1024 * 1024) {
+        failures.push(`${file.name}: the maximum image size is 50 MB.`)
+        continue
+      }
+      const extension = file.name.match(/\.([a-zA-Z0-9]+)$/)?.[1] ?? 'image'
+      const storagePath = `${memberId}/${crypto.randomUUID()}.${extension}`
+      const { error: uploadError } = await supabase.storage
+        .from('member-photos')
+        .upload(storagePath, file, { contentType: file.type || 'application/octet-stream', upsert: false })
+      if (uploadError) {
+        failures.push(`${file.name}: ${uploadError.message}`)
+        continue
+      }
+      const { data: publicUrl } = supabase.storage.from('member-photos').getPublicUrl(storagePath)
+      const { error: insertError } = await supabase.from('member_photos').insert({
+        member_id: memberId,
+        image_url: publicUrl.publicUrl,
+        storage_path: storagePath,
+        caption: null,
+        sort_order: sortOrder + index,
+      })
+      if (insertError) failures.push(`${file.name}: ${insertError.message}`)
+      else uploaded += 1
+    }
+    return { uploaded, failures }
+  }
+
+  async function createMember(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!supabase || !selectedGroup) return
+    setWorking(true)
+    setError('')
+    setSuccess('')
+    try {
+      const sortOrder = members.length ? Math.max(...members.map((member) => member.sort_order)) + 1 : 0
+      const slug = name.trim().normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+      const { data, error: insertError } = await supabase.from('members').insert({
+        group_id: selectedGroup.id,
+        full_name: name.trim(),
+        slug,
+        role_title: role.trim(),
+        bio: bio.trim() || null,
+        sort_order: sortOrder,
+        published: true,
+      }).select('id').single()
+      if (insertError) {
+        setError(insertError.message)
+        return
+      }
+      let message = 'Member profile created.'
+      if (newMemberPhotos.length) {
+        const result = await uploadPhotos(data.id, newMemberPhotos)
+        message += ` ${result.uploaded} of ${newMemberPhotos.length} original photo${newMemberPhotos.length === 1 ? '' : 's'} uploaded.`
+        if (result.failures.length) setError(result.failures.join(' '))
+      }
+      setSuccess(message)
+      setName('')
+      setRole('')
+      setBio('')
+      setNewMemberPhotos([])
+      await loadMembers(selectedGroup.id)
+    } catch (reason) {
+      setError(getErrorMessage(reason))
+    } finally {
+      setWorking(false)
+    }
+  }
+
+  async function createGroup(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!supabase) return
+    setWorking(true)
+    setError('')
+    setSuccess('')
+    try {
+      const slug = groupName.trim().normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+      if (!slug) {
+        setError('Enter a group name that includes letters or numbers.')
+        return
+      }
+      const { data, error: insertError } = await supabase.from('groups').insert({
+        name: groupName.trim(),
+        slug,
+        description: groupDescription.trim() || null,
+        sort_order: groups.length,
+        published: true,
+      }).select('id').single()
+      if (insertError) {
+        setError(insertError.message)
+        return
+      }
+      setGroupName('')
+      setGroupDescription('')
+      setLoading(true)
+      setMembers([])
+      setCatalogueMember('')
+      setSelectedGroupId(data.id)
+      setSuccess('Group page created. You can now add its members.')
+      await loadGroups()
+      setSelectedGroupId(data.id)
+    } catch (reason) {
+      setError(getErrorMessage(reason))
+    } finally {
+      setWorking(false)
+    }
+  }
+
+  async function addCataloguePhotos(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!supabase || !catalogueMember || !cataloguePhotos.length) return
+    setWorking(true)
+    setError('')
+    setSuccess('')
+    try {
+      const result = await uploadPhotos(catalogueMember, cataloguePhotos)
+      if (result.uploaded) setSuccess(`${result.uploaded} original photo${result.uploaded === 1 ? '' : 's'} added to the catalogue.`)
+      if (result.failures.length) setError(result.failures.join(' '))
+      setCataloguePhotos([])
+    } catch (reason) {
+      setError(getErrorMessage(reason))
+    } finally {
+      setWorking(false)
+    }
+  }
+
+  async function togglePublished(member: Member) {
+    if (!supabase) return
+    setError('')
+    try {
+      const { error: updateError } = await supabase.from('members').update({ published: !member.published }).eq('id', member.id)
+      if (updateError) setError(updateError.message)
+      else setMembers((current) => current.map((item) => item.id === member.id ? { ...item, published: !member.published } : item))
+    } catch (reason) {
+      setError(getErrorMessage(reason))
+    }
+  }
+
+  return (
+    <main className="admin-page">
+      <div className="admin-frame">
+        <div className="admin-topline">
+          <div className="admin-heading"><div className="eyebrow eyebrow-dark"><span /> YOUR PRIVATE STUDIO</div><h1>Care for your <em>communities.</em></h1><p>Create groups, add members, preserve their photos, and share each story.</p></div>
+          <button className="button button-outline" onClick={async () => { await supabase?.auth.signOut(); navigate('/') }} type="button"><LogOut size={15} /> Sign out</button>
+        </div>
+        {error && <div className="inline-error admin-alert" role="alert">{error}</div>}
+        {success && <div className="success-message" role="status"><Check size={17} /> {success}</div>}
+        {groups.length > 0 && (
+          <label className="group-admin-select">Choose a group to manage
+            <span className="select-wrap"><select onChange={(event) => { setLoading(true); setMembers([]); setCatalogueMember(''); setSelectedGroupId(event.target.value) }} value={selectedGroupId}>{groups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}</select><ChevronDown size={16} /></span>
+          </label>
+        )}
+        <div className="admin-grid">
+          <section className="admin-card">
+            <div className="admin-card-title"><span className="admin-step">01</span><div><h2>Create a group</h2><p>Give each community its own landing page and family tree.</p></div></div>
+            <form className="admin-form" onSubmit={(event) => void createGroup(event)}>
+              <label>Group name<input onChange={(event) => setGroupName(event.target.value)} placeholder="e.g. New Era Elegant Sisters" required value={groupName} /></label>
+              <label>Introduction <span className="optional-label">Optional</span><textarea onChange={(event) => setGroupDescription(event.target.value)} placeholder="A short introduction to this community…" rows={3} value={groupDescription} /></label>
+              <button className="button button-gold button-full" disabled={working} type="submit">{working ? <LoaderCircle className="spin" size={16} /> : <Plus size={16} />} Create group page</button>
+            </form>
+          </section>
+
+          <section className="admin-card">
+            <div className="admin-card-title"><span className="admin-step">02</span><div><h2>Add a member</h2><p>Create a profile in {selectedGroup?.name || 'a group'} and start their catalogue.</p></div></div>
+            <form className="admin-form" onSubmit={(event) => void createMember(event)}>
+              <label>Full name<input onChange={(event) => setName(event.target.value)} placeholder="e.g. Roseline Osipitan" required value={name} /></label>
+              <label>Title or role<input onChange={(event) => setRole(event.target.value)} placeholder="e.g. President, Adviser, Member" value={role} /></label>
+              <label>Their story <span className="optional-label">Optional</span><textarea onChange={(event) => setBio(event.target.value)} placeholder="A short introduction…" rows={3} value={bio} /></label>
+              <PhotoPicker files={newMemberPhotos} label="Add photos to their catalogue" onChange={setNewMemberPhotos} />
+              <button className="button button-gold button-full" disabled={working || !selectedGroup} type="submit">{working ? <LoaderCircle className="spin" size={16} /> : <Plus size={16} />} Create member profile</button>
+            </form>
+          </section>
+
+          <section className="admin-card">
+            <div className="admin-card-title"><span className="admin-step">03</span><div><h2>Grow a catalogue</h2><p>Add more photos to an existing member's collection.</p></div></div>
+            <form className="admin-form" onSubmit={(event) => void addCataloguePhotos(event)}>
+              <label>Select a member
+                <span className="select-wrap"><select onChange={(event) => setCatalogueMember(event.target.value)} required value={catalogueMember}><option disabled value="">Choose a member</option>{members.map((member) => <option key={member.id} value={member.id}>{member.full_name}</option>)}</select><ChevronDown size={16} /></span>
+              </label>
+              <PhotoPicker files={cataloguePhotos} label="Select catalogue photos" onChange={setCataloguePhotos} />
+              <button className="button button-outline button-full" disabled={working || !catalogueMember || !cataloguePhotos.length} type="submit">{working ? <LoaderCircle className="spin" size={16} /> : <Upload size={16} />} Upload original photos</button>
+              <div className="upload-promise"><ShieldCheck size={16} /><span>Original files are stored as uploaded—no cropping, filters, or compression.</span></div>
+            </form>
+          </section>
+        </div>
+
+        <section className="members-admin">
+          <div className="members-admin-heading"><div><div className="eyebrow eyebrow-dark">YOUR TREE · {selectedGroup?.name || 'CHOOSE A GROUP'}</div><h2>Member <em>profiles.</em></h2></div><span className="member-count">{members.length} {members.length === 1 ? 'member' : 'members'}</span></div>
+          {loading && selectedGroup ? <div className="loading-state"><LoaderCircle className="spin" size={19} /> Loading members…</div> : members.length ? (
+            <div className="member-admin-list">{members.map((member) => (
+              <div className="member-admin-row" key={member.id}>
+                <span className="admin-avatar"><Leaf size={17} /></span>
+                <div className="admin-member-details"><strong>{member.full_name}</strong><span>{member.role_title || 'Member'} · /groups/{selectedGroup?.slug}/members/{member.slug}</span></div>
+                <button aria-label={`${member.published ? 'Hide' : 'Publish'} ${member.full_name}`} className={member.published ? 'publish-toggle is-published' : 'publish-toggle'} onClick={() => void togglePublished(member)} type="button"><span />{member.published ? 'Published' : 'Hidden'}</button>
+                <Link aria-label={`View ${member.full_name}'s catalogue`} className="icon-button" to={`/groups/${selectedGroup?.slug}/members/${member.slug}`}><ArrowUpRight size={17} /></Link>
+              </div>
+            ))}</div>
+          ) : selectedGroup ? <p className="admin-no-members">Your first member profile will appear in this group.</p> : <p className="admin-no-members">Create a group to begin building its family tree.</p>}
+        </section>
+      </div>
+    </main>
+  )
+}
+
+function PhotoPicker({ files, label, onChange }: { files: File[]; label: string; onChange: (files: File[]) => void }) {
+  const inputRef = useRef<HTMLInputElement>(null)
+  return (
+    <div className="photo-picker">
+      <label>{label} <span className="optional-label">Optional · original quality</span></label>
+      <button className="photo-dropzone" onClick={() => inputRef.current?.click()} type="button">
+        <span className="drop-icon"><ImagePlus size={19} /></span>
+        <span><strong>Choose photos</strong><small>JPG, PNG, GIF, WebP and other image files · no edits applied</small></span>
+        <Plus className="drop-plus" size={17} />
+      </button>
+      <input
+        accept="image/*"
+        aria-label={label}
+        className="visually-hidden"
+        multiple
+        onChange={(event) => onChange(Array.from(event.target.files ?? []))}
+        ref={inputRef}
+        type="file"
+      />
+      {files.length > 0 && <div className="selected-files"><span>{files.length} selected</span>{files.map((file) => <span className="selected-file" key={`${file.name}-${file.lastModified}`}>{file.name}</span>)}<button onClick={() => { onChange([]); if (inputRef.current) inputRef.current.value = '' }} type="button">Clear</button></div>}
+    </div>
+  )
+}
+
+function NotFoundPage() {
+  return <main className="not-found"><span className="empty-icon"><Leaf size={27} /></span><div className="eyebrow eyebrow-dark">THIS BRANCH IS STILL GROWING</div><h1>We couldn't find <em>her story.</em></h1><p>This member page may have moved or is not public yet.</p><Link className="button button-gold" to="/"><ArrowLeft size={15} /> Back to the family tree</Link></main>
+}
+
+export default App
