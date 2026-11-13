@@ -1008,14 +1008,14 @@ function AdminDashboard({ onSignOut }: { onSignOut: () => void }) {
     for (const item of items) {
       const { file, mediaType } = item
       const correctType = mediaType === 'image' ? file.type.startsWith('image/') : file.type.startsWith('video/')
-      const maxBytes = mediaType === 'video' ? 100 * 1024 * 1024 : 50 * 1024 * 1024
+      const maxBytes = 50 * 1024 * 1024
       if (!correctType) {
         errors.push(`${file.name}: select a ${mediaType} file.`)
         failed.push(file)
         continue
       }
       if (file.size < 1 || file.size > maxBytes) {
-        errors.push(`${file.name}: the maximum ${mediaType} size is ${mediaType === 'video' ? '100' : '50'} MB.`)
+        errors.push(`${file.name}: the maximum ${mediaType} size is 50 MB.`)
         failed.push(file)
         continue
       }
@@ -1331,7 +1331,7 @@ function AdminDashboard({ onSignOut }: { onSignOut: () => void }) {
               <label>Their story <span className="optional-label">Optional</span><textarea disabled={Boolean(pendingMemberId)} onChange={(event) => setBio(event.target.value)} placeholder="A short introduction…" rows={3} value={bio} /></label>
               <FilePicker accept="image/*" file={treePortrait} label="Separate tree portrait · 50 MB max" onChange={setTreePortrait} required />
               <PhotoPicker files={newMemberPhotos} label="Catalogue photos · up to 10" onChange={setNewMemberPhotos} />
-              <FilePicker accept="video/*" file={newMemberVideo} label="Catalogue video · up to 3 minutes, 100 MB" onChange={setNewMemberVideo} />
+              <FilePicker accept="video/*" file={newMemberVideo} label="Catalogue video · up to 3 minutes, 50 MB" onChange={setNewMemberVideo} />
               <div className="upload-promise"><ShieldCheck size={16} /><span>New members stay hidden until the portrait and selected catalogue media finish uploading.</span></div>
               <button className="button button-gold button-full" disabled={working || !selectedGroup} type="submit">{working ? <LoaderCircle className="spin" size={16} /> : <Plus size={16} />} {working ? 'Uploading media…' : pendingMemberId ? 'Finish member uploads' : 'Create member profile'}</button>
             </form>
@@ -1345,7 +1345,7 @@ function AdminDashboard({ onSignOut }: { onSignOut: () => void }) {
               </label>
               <FilePicker accept="image/*" file={cataloguePortrait} label="Separate tree portrait · 50 MB max" onChange={setCataloguePortrait} />
               <PhotoPicker files={cataloguePhotos} label="Select catalogue photos" onChange={setCataloguePhotos} />
-              <FilePicker accept="video/*" file={catalogueVideo} label="Add one catalogue video · 3 minutes, 100 MB max" onChange={setCatalogueVideo} />
+              <FilePicker accept="video/*" file={catalogueVideo} label="Add one catalogue video · 3 minutes, 50 MB max" onChange={setCatalogueVideo} />
               <button className="button button-outline button-full" disabled={working || !catalogueMember || (!cataloguePortrait && !cataloguePhotos.length && !catalogueVideo)} type="submit">{working ? <LoaderCircle className="spin" size={16} /> : <Upload size={16} />} Upload original media</button>
               <div className="upload-promise"><ShieldCheck size={16} /><span>Original files are stored as uploaded—no cropping, filters, or compression.</span></div>
             </form>

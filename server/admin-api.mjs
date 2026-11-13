@@ -5,7 +5,7 @@ const cookieName = 'membergram_admin_session'
 const sessionLifetimeSeconds = 8 * 60 * 60
 const maxJsonBytes = 64 * 1024
 const maxImageBytes = 50 * 1024 * 1024
-const maxVideoBytes = 100 * 1024 * 1024
+const maxVideoBytes = 50 * 1024 * 1024
 const maxCatalogueImages = 10
 const maxCatalogueVideos = 1
 const maxMediaPerRequest = maxCatalogueImages + maxCatalogueVideos
@@ -367,7 +367,7 @@ async function handleAdminRequest(request, response, url) {
       }
       const maxBytes = mediaType === 'video' ? maxVideoBytes : maxImageBytes
       if (!Number.isSafeInteger(file.size) || file.size < 1 || file.size > maxBytes) {
-        throw new ApiError(400, mediaType === 'video' ? 'Each video must be 100 MB or smaller.' : 'Each image must be 50 MB or smaller.')
+        throw new ApiError(400, 'Each image or video must be 50 MB or smaller.')
       }
       let durationSeconds = null
       if (mediaType === 'video') {

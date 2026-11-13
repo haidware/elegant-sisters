@@ -129,7 +129,7 @@ values (
   'member-photos',
   'member-photos',
   true,
-  104857600,
+  52428800,
   null
 )
 on conflict (id) do update
