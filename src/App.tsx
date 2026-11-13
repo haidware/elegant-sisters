@@ -431,7 +431,7 @@ function GroupPage() {
           <div className="tree-wrap">
             <div className="tree-canopy" aria-hidden="true" />
             <div className="member-tree">
-              {buildMemberTreeTiers(filteredMembers).map((tier, tierIndex) => (
+              {buildMemberTreeTiers(filteredMembers, group.member_count).map((tier, tierIndex) => (
                 <div className="member-tree-tier" key={tierIndex}>
                   {tier.centerLabel && (
                     <div className="tree-group-sign" style={{ gridColumn: '3 / 6' }}>
@@ -439,15 +439,17 @@ function GroupPage() {
                       <strong>{group.name}</strong>
                     </div>
                   )}
-                  {tier.members.map((member, index) => (
+                  {tier.members.map(({ member, rank }, index) => member ? (
                     <MemberTreeCard
                       groupSlug={group.slug}
                       key={member.id}
                       member={member}
-                      number={member.sort_order + 1}
+                      number={rank}
                       photo={member.portrait_url || legacyPhotos[member.id] || ''}
                       style={{ gridColumn: getTreeTierColumn(index, tier.members.length, tier.centerLabel) }}
                     />
+                  ) : (
+                    <TreeMemberPlaceholder key={`slot-${rank}`} rank={rank} style={{ gridColumn: getTreeTierColumn(index, tier.members.length, tier.centerLabel) }} />
                   ))}
                 </div>
               ))}
@@ -479,7 +481,7 @@ function GroupPage() {
 }
 
 function GroupPosterPreview({ group, members, photos }: { group: Group; members: Member[]; photos: Record<string, string> }) {
-  const tiers = buildMemberTreeTiers(members)
+  const tiers = buildMemberTreeTiers(members, group.member_count)
   return (
     <div aria-label={`${group.name} family tree preview`} className="group-poster-wrap">
       <div className="group-poster">
@@ -490,7 +492,7 @@ function GroupPosterPreview({ group, members, photos }: { group: Group; members:
               {tiers.map((tier, tierIndex) => (
                 <div className="group-poster-tier" key={tierIndex}>
                   {tier.centerLabel && <div className="group-poster-center" style={{ gridColumn: '3 / 6' }}>{group.name}</div>}
-                  {tier.members.map((member, index) => (
+                  {tier.members.map(({ member, rank }, index) => member ? (
                     <Link
                       aria-label={`View ${member.full_name}'s catalogue`}
                       className="group-poster-member"
@@ -500,11 +502,15 @@ function GroupPosterPreview({ group, members, photos }: { group: Group; members:
                     >
                       <span className="group-poster-avatar">
                         {member.portrait_url || photos[member.id] ? <img alt="" crossOrigin="anonymous" src={member.portrait_url || photos[member.id]} /> : <Camera size={17} />}
-                        <i>{member.sort_order + 1}</i>
+                        <i>{rank}</i>
                       </span>
                       <strong>{member.full_name}</strong>
                       <small>{member.role_title || 'Member'}</small>
                     </Link>
+                  ) : (
+                    <div aria-label={`Available member position ${rank}`} className="group-poster-member is-empty" key={`slot-${rank}`} style={{ gridColumn: getTreeTierColumn(index, tier.members.length, tier.centerLabel) }}>
+                      <span className="group-poster-avatar"><Camera size={17} /><i>{rank}</i></span>
+                    </div>
                   ))}
                 </div>
               ))}
@@ -520,24 +526,32 @@ function GroupPosterPreview({ group, members, photos }: { group: Group; members:
   )
 }
 
-type MemberTreeTier = { members: Member[]; centerLabel: boolean }
+type MemberTreeSlot = { member: Member | null; rank: number }
+type MemberTreeTier = { members: MemberTreeSlot[]; centerLabel: boolean }
 
-function buildMemberTreeTiers(members: Member[]): MemberTreeTier[] {
+function buildMemberTreeTiers(members: Member[], plannedMemberCount = members.length): MemberTreeTier[] {
   const tiers: MemberTreeTier[] = []
+  const membersByRank = new Map(members.map((member) => [member.sort_order + 1, member]))
+  const highestRank = Math.max(0, ...membersByRank.keys())
+  const memberCount = Math.max(plannedMemberCount, highestRank)
+  const slots = Array.from({ length: memberCount }, (_, index) => ({
+    member: membersByRank.get(index + 1) ?? null,
+    rank: index + 1,
+  }))
   let offset = 0
   for (const size of [1, 2, 5, 6]) {
-    if (offset >= members.length) break
-    const tierMembers = members.slice(offset, offset + size)
+    if (offset >= slots.length) break
+    const tierMembers = slots.slice(offset, offset + size)
     tiers.push({ members: tierMembers, centerLabel: false })
     offset += tierMembers.length
   }
-  if (offset < members.length) {
-    const centerMembers = members.slice(offset, offset + 4)
+  if (offset < slots.length) {
+    const centerMembers = slots.slice(offset, offset + 4)
     tiers.push({ members: centerMembers, centerLabel: true })
     offset += centerMembers.length
   }
-  while (offset < members.length) {
-    const tierMembers = members.slice(offset, offset + 7)
+  while (offset < slots.length) {
+    const tierMembers = slots.slice(offset, offset + 7)
     tiers.push({ members: tierMembers, centerLabel: false })
     offset += tierMembers.length
   }
@@ -575,6 +589,17 @@ function MemberTreeCard({ groupSlug, member, number, photo, style }: { groupSlug
       <span className="member-role">{member.role_title || 'Sister'}</span>
       <span className="member-card-arrow"><ArrowUpRight size={13} /></span>
     </Link>
+  )
+}
+
+function TreeMemberPlaceholder({ rank, style }: { rank: number; style?: CSSProperties }) {
+  return (
+    <div aria-label={`Available member position ${rank}`} className="member-card is-empty" style={style}>
+      <span className="member-number">{rank}</span>
+      <span className="portrait-frame"><span className="portrait-placeholder"><Camera size={24} strokeWidth={1.3} /></span></span>
+      <span className="member-name-placeholder" />
+      <span className="member-role-placeholder" />
+    </div>
   )
 }
 
@@ -903,19 +928,23 @@ function TreeExport({ group, members, photos, onClose }: { group: Group; members
               <small>ROOTED IN SISTERHOOD · GROWING TOGETHER</small>
             </div>
             <div className="poster-members">
-              {buildMemberTreeTiers(members).map((tier, tierIndex) => (
+              {buildMemberTreeTiers(members, group.member_count).map((tier, tierIndex) => (
                 <div className="poster-tier" key={tierIndex}>
                   {tier.centerLabel && <div className="poster-group-sign" style={{ gridColumn: '3 / 6' }}>{group.name}</div>}
-                  {tier.members.map((member, index) => (
+                  {tier.members.map(({ member, rank }, index) => member ? (
                     <div className="poster-member" key={member.id} style={{ gridColumn: getTreeTierColumn(index, tier.members.length, tier.centerLabel) }}>
                       <div className="poster-portrait">
                         {member.portrait_url || photos[member.id] ? <img alt="" crossOrigin="anonymous" src={member.portrait_url || photos[member.id]} /> : <Camera size={20} />}
-                        <span>{member.sort_order + 1}</span>
+                        <span>{rank}</span>
                       </div>
                       <strong>{member.full_name}</strong>
                       <small>{member.role_title || 'Sister'}</small>
                       {qrCodes[member.id] ? <img alt={`Scan to view ${member.full_name}'s catalogue`} className="poster-qr" src={qrCodes[member.id]} /> : <span className="poster-qr-placeholder" />}
                       <span className="poster-scan">SCAN HER STORY</span>
+                    </div>
+                  ) : (
+                    <div aria-label={`Available member position ${rank}`} className="poster-member is-empty" key={`slot-${rank}`} style={{ gridColumn: getTreeTierColumn(index, tier.members.length, tier.centerLabel) }}>
+                      <div className="poster-portrait"><Camera size={20} /><span>{rank}</span></div>
                     </div>
                   ))}
                 </div>
