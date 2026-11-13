@@ -22,7 +22,7 @@ The selected group's family-tree export makes a PNG or an A3 landscape PDF with 
 
 ## Group size and tree ranks
 
-When creating a group, enter its planned number of members. For existing groups, update the planned size in the admin form. Assign each member a unique tree rank from 1 through that total; the next unused rank is suggested automatically. Ranks determine the member order and number shown in the public tree, preview poster, and downloadable image/PDF. The admin member list shows progress against the planned group size.
+When creating a group, enter its planned number of members. For existing groups, update the planned size in the admin form. Assign each member a unique tree rank from 1 through that total; the next unused rank is suggested automatically. Ranks determine the member order and number shown in the public tree, preview poster, and downloadable image/PDF. Empty planned positions show a numbered portrait placeholder and are replaced when a member is added at that rank. The admin member list shows progress against the planned group size. To set New Era Elegant Sisters International to the supplied 35-position tree, run [`supabase/set-elegant-sisters-member-count.sql`](./supabase/set-elegant-sisters-member-count.sql) in the Supabase SQL Editor.
 
 ## Group links and QR codes
 
