@@ -17,6 +17,9 @@ create table if not exists public.members (
   slug text not null,
   role_title text not null default 'Sister',
   bio text,
+  portrait_url text,
+  portrait_storage_path text,
+  media_ready boolean not null default true,
   sort_order integer not null default 0,
   published boolean not null default true,
   created_at timestamptz not null default now(),
@@ -31,13 +34,44 @@ create table if not exists public.member_photos (
   storage_path text not null unique,
   caption text,
   sort_order integer not null default 0,
+  media_type text not null default 'image',
+  duration_seconds numeric(6,3),
   created_at timestamptz not null default now()
 );
+
+alter table public.members add column if not exists portrait_url text;
+alter table public.members add column if not exists portrait_storage_path text;
+alter table public.members add column if not exists media_ready boolean not null default true;
+alter table public.member_photos add column if not exists media_type text not null default 'image';
+alter table public.member_photos add column if not exists duration_seconds numeric(6,3);
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint
+    where conname = 'member_photos_media_metadata_check'
+      and conrelid = 'public.member_photos'::regclass
+  ) then
+    alter table public.member_photos
+      add constraint member_photos_media_metadata_check
+      check (
+        (media_type = 'image' and duration_seconds is null)
+        or (media_type = 'video' and duration_seconds is not null and duration_seconds > 0 and duration_seconds <= 180)
+      );
+  end if;
+end
+$$;
 
 create index if not exists members_published_order_idx
   on public.members (group_id, published, sort_order);
 create index if not exists member_photos_member_order_idx
   on public.member_photos (member_id, sort_order);
+create unique index if not exists members_portrait_storage_path_idx
+  on public.members (portrait_storage_path)
+  where portrait_storage_path is not null;
+create unique index if not exists member_photos_one_video_per_member_idx
+  on public.member_photos (member_id)
+  where media_type = 'video';
 
 alter table public.groups enable row level security;
 alter table public.members enable row level security;
@@ -95,7 +129,7 @@ values (
   'member-photos',
   'member-photos',
   true,
-  52428800,
+  104857600,
   null
 )
 on conflict (id) do update

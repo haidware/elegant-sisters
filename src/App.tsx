@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useRef, useState, type FormEvent, type TouchEvent } from 'react'
 import { BrowserRouter, Link, Navigate, Route, Routes, useParams } from 'react-router-dom'
 import { createClient } from '@supabase/supabase-js'
 import QRCode from 'qrcode'
@@ -7,7 +7,9 @@ import {
   ArrowUpRight,
   Camera,
   Check,
+  ChevronLeft,
   ChevronDown,
+  ChevronRight,
   CircleHelp,
   Download,
   ImagePlus,
@@ -17,6 +19,7 @@ import {
   LogOut,
   Menu,
   Plus,
+  Play,
   Printer,
   QrCode,
   Search,
@@ -43,6 +46,9 @@ type Member = {
   full_name: string
   role_title: string
   bio: string | null
+  portrait_url: string | null
+  portrait_storage_path: string | null
+  media_ready: boolean
   sort_order: number
   published: boolean
 }
@@ -55,9 +61,13 @@ type MemberPhoto = {
   caption: string | null
   sort_order: number
   created_at: string
+  media_type: 'image' | 'video'
+  duration_seconds: number | null
 }
 
 type MemberWithPhotos = Member & { photos: MemberPhoto[]; group: Group }
+type UploadableMedia = { file: File; mediaType: 'image' | 'video' }
+type MediaUploadResult = { uploaded: File[]; failed: File[]; errors: string[] }
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
@@ -71,6 +81,21 @@ function getErrorMessage(error: unknown) {
 function slugify(value: string) {
   return value.trim().normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
     .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+}
+
+async function getVideoDuration(file: File): Promise<number> {
+  const url = URL.createObjectURL(file)
+  try {
+    return await new Promise<number>((resolve, reject) => {
+      const video = document.createElement('video')
+      video.preload = 'metadata'
+      video.onloadedmetadata = () => resolve(video.duration)
+      video.onerror = () => reject(new Error(`${file.name}: unable to read video duration.`))
+      video.src = url
+    })
+  } finally {
+    URL.revokeObjectURL(url)
+  }
 }
 
 async function adminRequest<T>(path: string, init?: RequestInit): Promise<T> {
@@ -268,7 +293,7 @@ function GroupPage() {
   const { groupSlug = '' } = useParams()
   const [group, setGroup] = useState<Group | null>(null)
   const [members, setMembers] = useState<Member[]>([])
-  const [photos, setPhotos] = useState<Record<string, string>>({})
+  const [legacyPhotos, setLegacyPhotos] = useState<Record<string, string>>({})
   const [loadedSlug, setLoadedSlug] = useState('')
   const [error, setError] = useState('')
   const [errorSlug, setErrorSlug] = useState('')
@@ -296,14 +321,14 @@ function GroupPage() {
       if (!groupData) {
         setGroup(null)
         setMembers([])
-        setPhotos({})
+        setLegacyPhotos({})
         setLoadedSlug(groupSlug)
         return
       }
       setGroup(groupData)
       const { data, error: queryError } = await supabase
         .from('members')
-        .select('id, group_id, slug, full_name, role_title, bio, sort_order, published')
+        .select('id, group_id, slug, full_name, role_title, bio, portrait_url, portrait_storage_path, media_ready, sort_order, published')
         .eq('group_id', groupData.id)
         .eq('published', true)
         .order('sort_order', { ascending: true })
@@ -314,12 +339,13 @@ function GroupPage() {
       } else {
         const publishedMembers = data ?? []
         setMembers(publishedMembers)
-        setPhotos({})
+        setLegacyPhotos({})
         if (publishedMembers.length) {
           const { data: photoData, error: photoError } = await supabase
             .from('member_photos')
-            .select('member_id, image_url')
+            .select('member_id, image_url, media_type')
             .in('member_id', publishedMembers.map((member) => member.id))
+            .eq('media_type', 'image')
             .order('sort_order', { ascending: true })
           if (active && photoError) {
             setError(photoError.message)
@@ -329,9 +355,9 @@ function GroupPage() {
             for (const photo of photoData ?? []) {
               if (!firstPhotos[photo.member_id]) firstPhotos[photo.member_id] = photo.image_url
             }
-            setPhotos(firstPhotos)
+            setLegacyPhotos(firstPhotos)
           }
-        }
+        } else if (active) setLegacyPhotos({})
       }
       if (active) setLoadedSlug(groupSlug)
     }
@@ -365,7 +391,7 @@ function GroupPage() {
             <div><strong>∞</strong><span>Stories to preserve</span></div>
           </div>
         </div>
-        <GroupPosterPreview group={group} members={members} photos={photos} />
+        <GroupPosterPreview group={group} members={members} photos={legacyPhotos} />
       </section>
 
       <section className="sisterhood-section" id="sisterhood">
@@ -404,7 +430,7 @@ function GroupPage() {
             <div className="tree-canopy" aria-hidden="true" />
             <div className="member-tree">
               {filteredMembers.map((member, index) => (
-                <MemberTreeCard groupSlug={group.slug} key={member.id} member={member} number={index + 1} photo={photos[member.id] ?? ''} />
+                <MemberTreeCard groupSlug={group.slug} key={member.id} member={member} number={index + 1} photo={member.portrait_url || legacyPhotos[member.id] || ''} />
               ))}
             </div>
             <div className="tree-roots"><span /><Leaf size={19} /><span /></div>
@@ -428,7 +454,7 @@ function GroupPage() {
         <p>Choose a member to explore their photo catalogue and share their story with the family.</p>
       </section>
 
-      {exportOpen && <TreeExport group={group} members={members} photos={photos} onClose={() => setExportOpen(false)} />}
+      {exportOpen && <TreeExport group={group} members={members} photos={legacyPhotos} onClose={() => setExportOpen(false)} />}
     </main>
   )
 }
@@ -445,7 +471,7 @@ function GroupPosterPreview({ group, members, photos }: { group: Group; members:
               {previewMembers.map((member, index) => (
                 <Link aria-label={`View ${member.full_name}'s catalogue`} className="group-poster-member" key={member.id} to={`/${group.slug}/${member.slug}`}>
                   <span className="group-poster-avatar">
-                    {photos[member.id] ? <img alt="" crossOrigin="anonymous" src={photos[member.id]} /> : <Camera size={17} />}
+                    {member.portrait_url || photos[member.id] ? <img alt="" crossOrigin="anonymous" src={member.portrait_url || photos[member.id]} /> : <Camera size={17} />}
                     <i>{index + 1}</i>
                   </span>
                   <strong>{member.full_name}</strong>
@@ -493,6 +519,14 @@ function MemberPage() {
   const pageKey = `${groupSlug}/${memberSlug}`
   const loading = loadedKey !== pageKey
 
+  function movePhoto(direction: -1 | 1) {
+    if (!member || !activePhoto) return
+    const currentIndex = member.photos.findIndex((photo) => photo.id === activePhoto.id)
+    if (currentIndex < 0 || !member.photos.length) return
+    const nextIndex = (currentIndex + direction + member.photos.length) % member.photos.length
+    setActivePhoto(member.photos[nextIndex])
+  }
+
   useEffect(() => {
     let active = true
     async function loadMember() {
@@ -517,7 +551,7 @@ function MemberPage() {
       }
       const { data: memberData, error: memberError } = await supabase
         .from('members')
-        .select('id, group_id, slug, full_name, role_title, bio, sort_order, published')
+        .select('id, group_id, slug, full_name, role_title, bio, portrait_url, portrait_storage_path, media_ready, sort_order, published')
         .eq('group_id', groupData.id)
         .eq('slug', memberSlug)
         .eq('published', true)
@@ -529,7 +563,7 @@ function MemberPage() {
       } else if (memberData) {
         const { data: photos, error: photoError } = await supabase
           .from('member_photos')
-          .select('id, member_id, image_url, storage_path, caption, sort_order, created_at')
+          .select('id, member_id, image_url, storage_path, caption, sort_order, created_at, media_type, duration_seconds')
           .eq('member_id', memberData.id)
           .order('sort_order', { ascending: true })
         if (active) {
@@ -559,12 +593,14 @@ function MemberPage() {
       <section className="profile-intro">
         <span className="profile-kicker"><span /> A MEMBER'S STORY <span /></span>
         <div className="profile-avatar">
-          {member.photos[0] ? <img alt="" crossOrigin="anonymous" src={member.photos[0].image_url} /> : <Camera size={32} />}
+          {member.portrait_url || member.photos.find((photo) => photo.media_type === 'image')?.image_url
+            ? <img alt="" crossOrigin="anonymous" src={member.portrait_url || member.photos.find((photo) => photo.media_type === 'image')?.image_url} />
+            : <Camera size={32} />}
         </div>
         <h1>{member.full_name}</h1>
         <p className="profile-role">{member.role_title || 'Sister'}</p>
         {member.bio && <p className="profile-bio">{member.bio}</p>}
-        <div className="profile-meta"><span><Camera size={14} /> {member.photos.length} {member.photos.length === 1 ? 'photo' : 'photos'} in their catalogue</span></div>
+        <div className="profile-meta"><span><Camera size={14} /> {member.photos.filter((photo) => photo.media_type === 'image').length} {member.photos.filter((photo) => photo.media_type === 'image').length === 1 ? 'photo' : 'photos'}{member.photos.some((photo) => photo.media_type === 'video') ? ' and 1 video' : ''} in their catalogue</span></div>
       </section>
 
       <section className="catalogue-section">
@@ -572,10 +608,12 @@ function MemberPage() {
           <div><div className="eyebrow eyebrow-dark">HER MOMENTS</div><h2>A catalogue of <em>memories.</em></h2></div>
         </div>
         {member.photos.length ? (
-          <div className="photo-gallery">
+          <div aria-label={`${member.full_name}'s photo and video catalogue`} className="photo-gallery" role="region" tabIndex={0}>
             {member.photos.map((photo) => (
               <button className="catalogue-photo" key={photo.id} onClick={() => setActivePhoto(photo)} type="button">
-                <img alt={photo.caption || `Photo of ${member.full_name}`} crossOrigin="anonymous" loading="lazy" src={photo.image_url} />
+                {photo.media_type === 'video'
+                  ? <><video aria-label={`Video of ${member.full_name}`} preload="metadata" src={photo.image_url} /><span className="catalogue-play"><Play size={20} fill="currentColor" /></span></>
+                  : <img alt={photo.caption || `Photo of ${member.full_name}`} crossOrigin="anonymous" loading="lazy" src={photo.image_url} />}
                 {photo.caption && <span>{photo.caption}</span>}
               </button>
             ))}
@@ -585,7 +623,16 @@ function MemberPage() {
         )}
       </section>
       <ShareMember member={member} />
-      {activePhoto && <PhotoLightbox onClose={() => setActivePhoto(null)} photo={activePhoto} />}
+      {activePhoto && (
+        <PhotoLightbox
+          onClose={() => setActivePhoto(null)}
+          onNext={() => movePhoto(1)}
+          onPrevious={() => movePhoto(-1)}
+          photo={activePhoto}
+          position={member.photos.findIndex((photo) => photo.id === activePhoto.id) + 1}
+          total={member.photos.length}
+        />
+      )}
     </main>
   )
 }
@@ -633,18 +680,60 @@ function QRCodeGraphic({ url, size }: { url: string; size: number }) {
   return <img alt={`QR code for ${url}`} height={size} src={dataUrl} width={size} />
 }
 
-function PhotoLightbox({ photo, onClose }: { photo: MemberPhoto; onClose: () => void }) {
+function PhotoLightbox({
+  photo,
+  onClose,
+  onNext,
+  onPrevious,
+  position,
+  total,
+}: {
+  photo: MemberPhoto
+  onClose: () => void
+  onNext: () => void
+  onPrevious: () => void
+  position: number
+  total: number
+}) {
+  const touchStart = useRef<{ x: number; y: number } | null>(null)
+
   useEffect(() => {
-    function onKeyDown(event: KeyboardEvent) { if (event.key === 'Escape') onClose() }
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') onClose()
+      if (event.key === 'ArrowLeft') onPrevious()
+      if (event.key === 'ArrowRight') onNext()
+    }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [onClose])
+  }, [onClose, onNext, onPrevious])
+
+  function handleTouchStart(event: TouchEvent<HTMLDivElement>) {
+    const touch = event.touches[0]
+    touchStart.current = touch ? { x: touch.clientX, y: touch.clientY } : null
+  }
+
+  function handleTouchEnd(event: TouchEvent<HTMLDivElement>) {
+    const start = touchStart.current
+    const touch = event.changedTouches[0]
+    touchStart.current = null
+    if (!start || !touch) return
+    const deltaX = touch.clientX - start.x
+    const deltaY = touch.clientY - start.y
+    if (Math.abs(deltaX) < 55 || Math.abs(deltaX) < Math.abs(deltaY) * 1.25) return
+    if (deltaX < 0) onNext()
+    else onPrevious()
+  }
 
   return (
-    <div className="lightbox" onClick={onClose} role="presentation">
+    <div className="lightbox" onClick={onClose} onTouchEnd={handleTouchEnd} onTouchStart={handleTouchStart} role="presentation">
       <button aria-label="Close photo" className="lightbox-close" onClick={onClose} type="button"><X size={22} /></button>
-      <img alt={photo.caption || 'Member catalogue photo'} crossOrigin="anonymous" onClick={(event) => event.stopPropagation()} src={photo.image_url} />
+      <button aria-label="Previous media" className="lightbox-nav lightbox-previous" onClick={(event) => { event.stopPropagation(); onPrevious() }} type="button"><ChevronLeft size={25} /></button>
+      <button aria-label="Next media" className="lightbox-nav lightbox-next" onClick={(event) => { event.stopPropagation(); onNext() }} type="button"><ChevronRight size={25} /></button>
+      {photo.media_type === 'video'
+        ? <video autoPlay controls playsInline onClick={(event) => event.stopPropagation()} src={photo.image_url} />
+        : <img alt={photo.caption || 'Member catalogue photo'} crossOrigin="anonymous" onClick={(event) => event.stopPropagation()} src={photo.image_url} />}
       {photo.caption && <p>{photo.caption}</p>}
+      <span className="lightbox-position">{position} / {total}</span>
     </div>
   )
 }
@@ -748,7 +837,7 @@ function TreeExport({ group, members, photos, onClose }: { group: Group; members
               {members.map((member, index) => (
                 <div className="poster-member" key={member.id}>
                   <div className="poster-portrait">
-                    {photos[member.id] ? <img alt="" crossOrigin="anonymous" src={photos[member.id]} /> : <Camera size={20} />}
+                    {member.portrait_url || photos[member.id] ? <img alt="" crossOrigin="anonymous" src={member.portrait_url || photos[member.id]} /> : <Camera size={20} />}
                     <span>{index + 1}</span>
                   </div>
                   <strong>{member.full_name}</strong>
@@ -869,9 +958,14 @@ function AdminDashboard({ onSignOut }: { onSignOut: () => void }) {
   const [name, setName] = useState('')
   const [role, setRole] = useState('')
   const [bio, setBio] = useState('')
+  const [treePortrait, setTreePortrait] = useState<File | null>(null)
   const [newMemberPhotos, setNewMemberPhotos] = useState<File[]>([])
+  const [newMemberVideo, setNewMemberVideo] = useState<File | null>(null)
+  const [pendingMemberId, setPendingMemberId] = useState('')
   const [catalogueMember, setCatalogueMember] = useState('')
+  const [cataloguePortrait, setCataloguePortrait] = useState<File | null>(null)
   const [cataloguePhotos, setCataloguePhotos] = useState<File[]>([])
+  const [catalogueVideo, setCatalogueVideo] = useState<File | null>(null)
   const [working, setWorking] = useState(false)
   const selectedGroup = groups.find((group) => group.id === selectedGroupId) ?? null
 
@@ -905,99 +999,188 @@ function AdminDashboard({ onSignOut }: { onSignOut: () => void }) {
     if (selectedGroupId) void Promise.resolve().then(() => loadMembers(selectedGroupId))
   }, [loadMembers, selectedGroupId])
 
-  async function uploadPhotos(memberId: string, files: File[]) {
+  async function uploadMedia(memberId: string, items: UploadableMedia[], purpose: 'portrait' | 'catalogue'): Promise<MediaUploadResult> {
     if (!supabase) throw new Error('Supabase is not configured.')
-    const failures: string[] = []
-    let uploaded = 0
-    const validFiles: File[] = []
-    for (const file of files) {
-      if (!file.type.startsWith('image/')) {
-        failures.push(`${file.name}: select an image file.`)
+    const errors: string[] = []
+    const failed: File[] = []
+    const validItems: { file: File; mediaType: 'image' | 'video'; durationSeconds: number | null }[] = []
+
+    for (const item of items) {
+      const { file, mediaType } = item
+      const correctType = mediaType === 'image' ? file.type.startsWith('image/') : file.type.startsWith('video/')
+      const maxBytes = mediaType === 'video' ? 100 * 1024 * 1024 : 50 * 1024 * 1024
+      if (!correctType) {
+        errors.push(`${file.name}: select a ${mediaType} file.`)
+        failed.push(file)
         continue
       }
-      if (file.size > 50 * 1024 * 1024) {
-        failures.push(`${file.name}: the maximum image size is 50 MB.`)
+      if (file.size < 1 || file.size > maxBytes) {
+        errors.push(`${file.name}: the maximum ${mediaType} size is ${mediaType === 'video' ? '100' : '50'} MB.`)
+        failed.push(file)
         continue
       }
-      validFiles.push(file)
+      let durationSeconds: number | null = null
+      if (mediaType === 'video') {
+        try {
+          durationSeconds = await getVideoDuration(file)
+        } catch (reason) {
+          errors.push(getErrorMessage(reason))
+          failed.push(file)
+          continue
+        }
+        if (!Number.isFinite(durationSeconds) || durationSeconds <= 0 || durationSeconds > 180) {
+          errors.push(`${file.name}: videos must be 3 minutes or shorter.`)
+          failed.push(file)
+          continue
+        }
+      }
+      validItems.push({ file, mediaType, durationSeconds })
     }
 
-    for (let offset = 0; offset < validFiles.length; offset += 20) {
-      const batch = validFiles.slice(offset, offset + 20)
-      let uploadTickets: { path: string; token: string }[]
+    if (!validItems.length) return { uploaded: [], failed, errors }
+
+    let tickets: { path: string; token: string }[]
+    try {
+      const result = await adminRequest<{ uploads: { path: string; token: string }[] }>('/media/sign', {
+        method: 'POST',
+        body: JSON.stringify({
+          memberId,
+          purpose,
+          files: validItems.map(({ file, mediaType, durationSeconds }) => ({
+            name: file.name,
+            type: file.type,
+            size: file.size,
+            media_type: mediaType,
+            duration_seconds: durationSeconds,
+          })),
+        }),
+      })
+      tickets = result.uploads
+    } catch (reason) {
+      errors.push(getErrorMessage(reason))
+      return { uploaded: [], failed: [...failed, ...validItems.map((item) => item.file)], errors }
+    }
+
+    const completedUploads: { item: (typeof validItems)[number]; path: string }[] = []
+    for (const [index, item] of validItems.entries()) {
+      const ticket = tickets[index]
+      if (!ticket) {
+        errors.push(`${item.file.name}: upload authorization was not returned.`)
+        failed.push(item.file)
+        continue
+      }
+      const { error: uploadError } = await supabase.storage.from('member-photos')
+        .uploadToSignedUrl(ticket.path, ticket.token, item.file, { contentType: item.file.type })
+      if (uploadError) {
+        errors.push(`${item.file.name}: ${uploadError.message}`)
+        failed.push(item.file)
+      } else {
+        completedUploads.push({ item, path: ticket.path })
+      }
+    }
+
+    if (purpose === 'portrait') {
+      for (const upload of completedUploads) {
+        try {
+          await adminRequest(`/members/${memberId}/portrait`, {
+            method: 'POST',
+            body: JSON.stringify({ path: upload.path }),
+          })
+        } catch (reason) {
+          errors.push(getErrorMessage(reason))
+          failed.push(upload.item.file)
+          continue
+        }
+      }
+    } else if (completedUploads.length) {
       try {
-        const result = await adminRequest<{ uploads: { path: string; token: string }[] }>('/photos/sign', {
+        await adminRequest('/media/register', {
           method: 'POST',
           body: JSON.stringify({
             memberId,
-            files: batch.map((file) => ({ name: file.name, type: file.type, size: file.size })),
+            uploads: completedUploads.map(({ item, path }) => ({
+              path,
+              media_type: item.mediaType,
+              duration_seconds: item.durationSeconds,
+            })),
           }),
         })
-        uploadTickets = result.uploads
       } catch (reason) {
-        failures.push(...batch.map((file) => `${file.name}: ${getErrorMessage(reason)}`))
-        continue
-      }
-
-      const uploadedPaths: string[] = []
-      for (const [index, file] of batch.entries()) {
-        const ticket = uploadTickets[index]
-        if (!ticket) {
-          failures.push(`${file.name}: upload authorization was not returned.`)
-          continue
-        }
-        const { error: uploadError } = await supabase.storage.from('member-photos')
-          .uploadToSignedUrl(ticket.path, ticket.token, file, { contentType: file.type })
-        if (uploadError) failures.push(`${file.name}: ${uploadError.message}`)
-        else uploadedPaths.push(ticket.path)
-      }
-
-      if (uploadedPaths.length) {
-        try {
-          const result = await adminRequest<{ uploaded: number }>('/photos/register', {
-            method: 'POST',
-            body: JSON.stringify({ memberId, paths: uploadedPaths }),
-          })
-          uploaded += result.uploaded
-        } catch (reason) {
-          failures.push(getErrorMessage(reason))
-        }
+        errors.push(getErrorMessage(reason))
+        failed.push(...completedUploads.map(({ item }) => item.file))
       }
     }
-    return { uploaded, failures }
+
+    const uploaded = purpose === 'portrait'
+      ? completedUploads.filter(({ item }) => !failed.includes(item.file)).map(({ item }) => item.file)
+      : completedUploads.length && !failed.some((file) => completedUploads.some((upload) => upload.item.file === file))
+        ? completedUploads.map(({ item }) => item.file)
+        : []
+    return { uploaded, failed, errors }
   }
 
   async function createMember(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!supabase || !selectedGroup) return
+    if (!pendingMemberId && !treePortrait) {
+      setError('Choose a separate tree portrait before creating this member.')
+      return
+    }
+    if (!pendingMemberId && newMemberPhotos.length > 10) {
+      setError('A member can have up to 10 catalogue photos.')
+      return
+    }
     setWorking(true)
     setError('')
     setSuccess('')
     try {
-      const sortOrder = members.length ? Math.max(...members.map((member) => member.sort_order)) + 1 : 0
-      const slug = slugify(name)
-      const data = await adminRequest<{ id: string }>('/members', {
-        method: 'POST',
-        body: JSON.stringify({
-          group_id: selectedGroup.id,
-          full_name: name.trim(),
-          slug,
-          role_title: role.trim(),
-          bio: bio.trim() || null,
-          sort_order: sortOrder,
-        }),
-      })
-      let message = 'Member profile created.'
-      if (newMemberPhotos.length) {
-        const result = await uploadPhotos(data.id, newMemberPhotos)
-        message += ` ${result.uploaded} of ${newMemberPhotos.length} original photo${newMemberPhotos.length === 1 ? '' : 's'} uploaded.`
-        if (result.failures.length) setError(result.failures.join(' '))
+      let memberId = pendingMemberId
+      if (!memberId) {
+        const sortOrder = members.length ? Math.max(...members.map((member) => member.sort_order)) + 1 : 0
+        const data = await adminRequest<{ id: string }>('/members', {
+          method: 'POST',
+          body: JSON.stringify({
+            group_id: selectedGroup.id,
+            full_name: name.trim(),
+            slug: slugify(name),
+            role_title: role.trim(),
+            bio: bio.trim() || null,
+            sort_order: sortOrder,
+          }),
+        })
+        memberId = data.id
+        setPendingMemberId(memberId)
       }
-      setSuccess(message)
+      const failures: string[] = []
+      if (treePortrait) {
+        const result = await uploadMedia(memberId, [{ file: treePortrait, mediaType: 'image' }], 'portrait')
+        failures.push(...result.errors)
+        if (result.uploaded.length) setTreePortrait(null)
+      }
+      const catalogueItems: UploadableMedia[] = [
+        ...newMemberPhotos.map((file) => ({ file, mediaType: 'image' as const })),
+        ...(newMemberVideo ? [{ file: newMemberVideo, mediaType: 'video' as const }] : []),
+      ]
+      if (catalogueItems.length) {
+        const result = await uploadMedia(memberId, catalogueItems, 'catalogue')
+        failures.push(...result.errors)
+        setNewMemberPhotos(result.failed.filter((file) => file.type.startsWith('image/')))
+        setNewMemberVideo(result.failed.find((file) => file.type.startsWith('video/')) ?? null)
+      }
+      if (failures.length) {
+        setError(`This member is saved as a hidden draft until all selected uploads finish. ${failures.join(' ')}`)
+        await loadMembers(selectedGroup.id)
+        return
+      }
+      await adminRequest(`/members/${memberId}/complete`, { method: 'POST' })
+      setSuccess('Member profile created. The tree portrait and selected catalogue media are uploaded.')
+      setPendingMemberId('')
       setName('')
       setRole('')
       setBio('')
+      setTreePortrait(null)
       setNewMemberPhotos([])
+      setNewMemberVideo(null)
       await loadMembers(selectedGroup.id)
     } catch (reason) {
       setError(getErrorMessage(reason))
@@ -1008,7 +1191,7 @@ function AdminDashboard({ onSignOut }: { onSignOut: () => void }) {
 
   async function createGroup(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (!supabase) return
+    if (!supabase || pendingMemberId) return
     setWorking(true)
     setError('')
     setSuccess('')
@@ -1036,6 +1219,9 @@ function AdminDashboard({ onSignOut }: { onSignOut: () => void }) {
       setLoading(true)
       setMembers([])
       setCatalogueMember('')
+      setCataloguePortrait(null)
+      setCataloguePhotos([])
+      setCatalogueVideo(null)
       setSelectedGroupId(data.id)
       setSuccess('Group page created. You can now add its members.')
       await loadGroups()
@@ -1049,15 +1235,34 @@ function AdminDashboard({ onSignOut }: { onSignOut: () => void }) {
 
   async function addCataloguePhotos(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (!supabase || !catalogueMember || !cataloguePhotos.length) return
+    if (!supabase || !catalogueMember || (!cataloguePortrait && !cataloguePhotos.length && !catalogueVideo)) return
     setWorking(true)
     setError('')
     setSuccess('')
     try {
-      const result = await uploadPhotos(catalogueMember, cataloguePhotos)
-      if (result.uploaded) setSuccess(`${result.uploaded} original photo${result.uploaded === 1 ? '' : 's'} added to the catalogue.`)
-      if (result.failures.length) setError(result.failures.join(' '))
-      setCataloguePhotos([])
+      const failures: string[] = []
+      let uploadedCount = 0
+      if (cataloguePortrait) {
+        const portraitResult = await uploadMedia(catalogueMember, [{ file: cataloguePortrait, mediaType: 'image' }], 'portrait')
+        failures.push(...portraitResult.errors)
+        uploadedCount += portraitResult.uploaded.length
+        if (portraitResult.uploaded.length) setCataloguePortrait(null)
+      }
+
+      const items: UploadableMedia[] = [
+        ...cataloguePhotos.map((file) => ({ file, mediaType: 'image' as const })),
+        ...(catalogueVideo ? [{ file: catalogueVideo, mediaType: 'video' as const }] : []),
+      ]
+      if (items.length) {
+        const result = await uploadMedia(catalogueMember, items, 'catalogue')
+        setCataloguePhotos(result.failed.filter((file) => file.type.startsWith('image/')))
+        setCatalogueVideo(result.failed.find((file) => file.type.startsWith('video/')) ?? null)
+        failures.push(...result.errors)
+        uploadedCount += result.uploaded.length
+      }
+      if (uploadedCount) setSuccess(`${uploadedCount} original media file${uploadedCount === 1 ? '' : 's'} uploaded.`)
+      if (failures.length) setError(failures.join(' '))
+      await loadMembers(selectedGroupId)
     } catch (reason) {
       setError(getErrorMessage(reason))
     } finally {
@@ -1078,6 +1283,22 @@ function AdminDashboard({ onSignOut }: { onSignOut: () => void }) {
     }
   }
 
+  function resumeMemberUploads(member: Member) {
+    setPendingMemberId(member.id)
+    setName(member.full_name)
+    setRole(member.role_title)
+    setBio(member.bio ?? '')
+    setTreePortrait(null)
+    setNewMemberPhotos([])
+    setNewMemberVideo(null)
+    setCatalogueMember('')
+    setCataloguePortrait(null)
+    setCataloguePhotos([])
+    setCatalogueVideo(null)
+    setError('')
+    setSuccess(`Select any remaining media for ${member.full_name}, then finish their uploads.`)
+  }
+
   return (
     <main className="admin-page">
       <div className="admin-frame">
@@ -1089,7 +1310,7 @@ function AdminDashboard({ onSignOut }: { onSignOut: () => void }) {
         {success && <div className="success-message" role="status"><Check size={17} /> {success}</div>}
         {groups.length > 0 && (
           <label className="group-admin-select">Choose a group to manage
-            <span className="select-wrap"><select onChange={(event) => { setLoading(true); setMembers([]); setCatalogueMember(''); setSelectedGroupId(event.target.value) }} value={selectedGroupId}>{groups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}</select><ChevronDown size={16} /></span>
+            <span className="select-wrap"><select disabled={Boolean(pendingMemberId)} onChange={(event) => { setLoading(true); setMembers([]); setCatalogueMember(''); setCataloguePortrait(null); setCataloguePhotos([]); setCatalogueVideo(null); setSelectedGroupId(event.target.value) }} value={selectedGroupId}>{groups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}</select><ChevronDown size={16} /></span>
           </label>
         )}
         <div className="admin-grid">
@@ -1098,18 +1319,21 @@ function AdminDashboard({ onSignOut }: { onSignOut: () => void }) {
             <form className="admin-form" onSubmit={(event) => void createGroup(event)}>
               <label>Group name<input onChange={(event) => setGroupName(event.target.value)} placeholder="e.g. New Era Elegant Sisters" required value={groupName} /></label>
               <label>Introduction <span className="optional-label">Optional</span><textarea onChange={(event) => setGroupDescription(event.target.value)} placeholder="A short introduction to this community…" rows={3} value={groupDescription} /></label>
-              <button className="button button-gold button-full" disabled={working} type="submit">{working ? <LoaderCircle className="spin" size={16} /> : <Plus size={16} />} Create group page</button>
+              <button className="button button-gold button-full" disabled={working || Boolean(pendingMemberId)} type="submit">{working ? <LoaderCircle className="spin" size={16} /> : <Plus size={16} />} Create group page</button>
             </form>
           </section>
 
           <section className="admin-card">
             <div className="admin-card-title"><span className="admin-step">02</span><div><h2>Add a member</h2><p>Create a profile in {selectedGroup?.name || 'a group'} and start their catalogue.</p></div></div>
             <form className="admin-form" onSubmit={(event) => void createMember(event)}>
-              <label>Full name<input onChange={(event) => setName(event.target.value)} placeholder="e.g. Roseline Osipitan" required value={name} /></label>
-              <label>Title or role<input onChange={(event) => setRole(event.target.value)} placeholder="e.g. President, Adviser, Member" value={role} /></label>
-              <label>Their story <span className="optional-label">Optional</span><textarea onChange={(event) => setBio(event.target.value)} placeholder="A short introduction…" rows={3} value={bio} /></label>
-              <PhotoPicker files={newMemberPhotos} label="Add photos to their catalogue" onChange={setNewMemberPhotos} />
-              <button className="button button-gold button-full" disabled={working || !selectedGroup} type="submit">{working ? <LoaderCircle className="spin" size={16} /> : <Plus size={16} />} Create member profile</button>
+              <label>Full name<input disabled={Boolean(pendingMemberId)} onChange={(event) => setName(event.target.value)} placeholder="e.g. Roseline Osipitan" required value={name} /></label>
+              <label>Title or role<input disabled={Boolean(pendingMemberId)} onChange={(event) => setRole(event.target.value)} placeholder="e.g. President, Adviser, Member" value={role} /></label>
+              <label>Their story <span className="optional-label">Optional</span><textarea disabled={Boolean(pendingMemberId)} onChange={(event) => setBio(event.target.value)} placeholder="A short introduction…" rows={3} value={bio} /></label>
+              <FilePicker accept="image/*" file={treePortrait} label="Separate tree portrait · 50 MB max" onChange={setTreePortrait} required />
+              <PhotoPicker files={newMemberPhotos} label="Catalogue photos · up to 10" onChange={setNewMemberPhotos} />
+              <FilePicker accept="video/*" file={newMemberVideo} label="Catalogue video · up to 3 minutes, 100 MB" onChange={setNewMemberVideo} />
+              <div className="upload-promise"><ShieldCheck size={16} /><span>New members stay hidden until the portrait and selected catalogue media finish uploading.</span></div>
+              <button className="button button-gold button-full" disabled={working || !selectedGroup} type="submit">{working ? <LoaderCircle className="spin" size={16} /> : <Plus size={16} />} {working ? 'Uploading media…' : pendingMemberId ? 'Finish member uploads' : 'Create member profile'}</button>
             </form>
           </section>
 
@@ -1117,10 +1341,12 @@ function AdminDashboard({ onSignOut }: { onSignOut: () => void }) {
             <div className="admin-card-title"><span className="admin-step">03</span><div><h2>Grow a catalogue</h2><p>Add more photos to an existing member's collection.</p></div></div>
             <form className="admin-form" onSubmit={(event) => void addCataloguePhotos(event)}>
               <label>Select a member
-                <span className="select-wrap"><select onChange={(event) => setCatalogueMember(event.target.value)} required value={catalogueMember}><option disabled value="">Choose a member</option>{members.map((member) => <option key={member.id} value={member.id}>{member.full_name}</option>)}</select><ChevronDown size={16} /></span>
+                <span className="select-wrap"><select onChange={(event) => { setCatalogueMember(event.target.value); setCataloguePortrait(null); setCataloguePhotos([]); setCatalogueVideo(null) }} required value={catalogueMember}><option disabled value="">Choose a member</option>{members.map((member) => <option key={member.id} value={member.id}>{member.full_name}</option>)}</select><ChevronDown size={16} /></span>
               </label>
+              <FilePicker accept="image/*" file={cataloguePortrait} label="Separate tree portrait · 50 MB max" onChange={setCataloguePortrait} />
               <PhotoPicker files={cataloguePhotos} label="Select catalogue photos" onChange={setCataloguePhotos} />
-              <button className="button button-outline button-full" disabled={working || !catalogueMember || !cataloguePhotos.length} type="submit">{working ? <LoaderCircle className="spin" size={16} /> : <Upload size={16} />} Upload original photos</button>
+              <FilePicker accept="video/*" file={catalogueVideo} label="Add one catalogue video · 3 minutes, 100 MB max" onChange={setCatalogueVideo} />
+              <button className="button button-outline button-full" disabled={working || !catalogueMember || (!cataloguePortrait && !cataloguePhotos.length && !catalogueVideo)} type="submit">{working ? <LoaderCircle className="spin" size={16} /> : <Upload size={16} />} Upload original media</button>
               <div className="upload-promise"><ShieldCheck size={16} /><span>Original files are stored as uploaded—no cropping, filters, or compression.</span></div>
             </form>
           </section>
@@ -1131,9 +1357,10 @@ function AdminDashboard({ onSignOut }: { onSignOut: () => void }) {
           {loading && selectedGroup ? <div className="loading-state"><LoaderCircle className="spin" size={19} /> Loading members…</div> : members.length ? (
             <div className="member-admin-list">{members.map((member) => (
               <div className="member-admin-row" key={member.id}>
-                <span className="admin-avatar"><Leaf size={17} /></span>
+                <span className="admin-avatar">{member.portrait_url ? <img alt="" src={member.portrait_url} /> : <Leaf size={17} />}</span>
                 <div className="admin-member-details"><strong>{member.full_name}</strong><span>{member.role_title || 'Member'} · /{selectedGroup?.slug}/{member.slug}</span></div>
-                <button aria-label={`${member.published ? 'Hide' : 'Publish'} ${member.full_name}`} className={member.published ? 'publish-toggle is-published' : 'publish-toggle'} onClick={() => void togglePublished(member)} type="button"><span />{member.published ? 'Published' : 'Hidden'}</button>
+                {!member.media_ready && <button className="button button-outline" onClick={() => resumeMemberUploads(member)} type="button">Resume uploads</button>}
+                <button aria-label={`${member.published ? 'Hide' : 'Publish'} ${member.full_name}`} className={member.published ? 'publish-toggle is-published' : 'publish-toggle'} disabled={!member.media_ready} onClick={() => void togglePublished(member)} type="button"><span />{member.media_ready ? (member.published ? 'Published' : 'Hidden') : 'Uploads pending'}</button>
                 <Link aria-label={`View ${member.full_name}'s catalogue`} className="icon-button" to={`/${selectedGroup?.slug}/${member.slug}`}><ArrowUpRight size={17} /></Link>
               </div>
             ))}</div>
@@ -1144,11 +1371,34 @@ function AdminDashboard({ onSignOut }: { onSignOut: () => void }) {
   )
 }
 
+function FilePicker({ accept, file, label, onChange, required = false }: { accept: string; file: File | null; label: string; onChange: (file: File | null) => void; required?: boolean }) {
+  const inputRef = useRef<HTMLInputElement>(null)
+  return (
+    <div className="photo-picker">
+      <label>{label} <span className="optional-label">{file ? 'Original quality' : required ? 'Required for new members' : 'Optional'}</span></label>
+      <button className="photo-dropzone" onClick={() => inputRef.current?.click()} type="button">
+        <span className="drop-icon"><Upload size={18} /></span>
+        <span><strong>{file ? 'Change file' : 'Choose file'}</strong><small>{file?.name || 'Stored as uploaded, without cropping or compression'}</small></span>
+        <Plus className="drop-plus" size={17} />
+      </button>
+      <input
+        accept={accept}
+        aria-label={label}
+        className="visually-hidden"
+        onChange={(event) => onChange(event.target.files?.[0] ?? null)}
+        ref={inputRef}
+        type="file"
+      />
+      {file && <div className="selected-files"><span className="selected-file">{file.name}</span><button onClick={() => { onChange(null); if (inputRef.current) inputRef.current.value = '' }} type="button">Clear</button></div>}
+    </div>
+  )
+}
+
 function PhotoPicker({ files, label, onChange }: { files: File[]; label: string; onChange: (files: File[]) => void }) {
   const inputRef = useRef<HTMLInputElement>(null)
   return (
     <div className="photo-picker">
-      <label>{label} <span className="optional-label">Optional · original quality</span></label>
+      <label>{label} <span className="optional-label">Optional · original quality · 10 max</span></label>
       <button className="photo-dropzone" onClick={() => inputRef.current?.click()} type="button">
         <span className="drop-icon"><ImagePlus size={19} /></span>
         <span><strong>Choose photos</strong><small>JPG, PNG, GIF, WebP and other image files · no edits applied</small></span>
