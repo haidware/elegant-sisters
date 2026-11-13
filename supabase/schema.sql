@@ -175,6 +175,3 @@ create policy "Admins can delete member photos"
   on storage.objects for delete to authenticated
   using (bucket_id = 'member-photos' and (select public.is_admin()));
 
-insert into public.admin_users (user_id)
-values ('436c0916-231d-4c13-a8bc-5eec89ae88ee')
-on conflict (user_id) do nothing;
