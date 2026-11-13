@@ -7,13 +7,7 @@ Membergram is a multi-group family-tree and photo-catalogue website. Visitors ch
 1. Install dependencies with `npm install`.
 2. In the Supabase SQL Editor for your project, run [`supabase/schema.sql`](./supabase/schema.sql).
 3. Disable public sign-ups in Supabase Authentication if only invited administrators should have access.
-4. In Supabase Authentication → Users, create or locate the admin account for this same project and copy its user ID. Add that exact ID to the admin allow-list in the SQL Editor:
-
-   ```sql
-   insert into public.admin_users (user_id)
-   values ('AUTH_USER_ID')
-   on conflict (user_id) do nothing;
-   ```
+4. The schema grants admin access only to the configured Supabase Auth user ID. Ensure that account exists in Authentication → Users in this same project before running the schema. To change the sole admin account, update the UUID seed at the end of `supabase/schema.sql`.
 
 5. Copy `.env.example` to `.env.local` and set `VITE_SUPABASE_ANON_KEY` to the project's Supabase anon/publishable key. The project URL is already filled in. The anon key is intended for browser use; never put a `service_role` key in this app.
 6. Start the website with `npm run dev`. The root URL (`/`) is the admin login. Use `/groups` to browse published groups; each group is available at `/<group-slug>`, with member catalogues at `/<group-slug>/<member-slug>`.

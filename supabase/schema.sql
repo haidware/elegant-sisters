@@ -175,3 +175,16 @@ create policy "Admins can delete member photos"
   on storage.objects for delete to authenticated
   using (bucket_id = 'member-photos' and (select public.is_admin()));
 
+delete from public.admin_users
+where user_id <> '436c0916-231d-4c13-a8bc-5eec89ae88ee';
+
+alter table public.admin_users
+  drop constraint if exists admin_users_user_id_fkey;
+alter table public.admin_users
+  add constraint admin_users_user_id_fkey
+  foreign key (user_id) references auth.users (id) on delete cascade;
+
+insert into public.admin_users (user_id)
+values ('436c0916-231d-4c13-a8bc-5eec89ae88ee')
+on conflict (user_id) do nothing;
+
