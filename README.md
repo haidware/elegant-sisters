@@ -15,7 +15,7 @@ Membergram is a multi-group family-tree and photo-catalogue website. Visitors ch
    ```
 
 5. Copy `.env.example` to `.env.local` and set `VITE_SUPABASE_ANON_KEY` to the project's Supabase anon/publishable key. The project URL is already filled in. The anon key is intended for browser use; never put a `service_role` key in this app.
-6. Start the website with `npm run dev`. Sign in at `/admin` to create groups, then add members and their images to each group.
+6. Start the website with `npm run dev`. The root URL (`/`) is the admin login. Use `/groups` to browse published groups; each group is available at `/<group-slug>`, with member catalogues at `/<group-slug>/<member-slug>`.
 
 The database schema enables row-level security. Public visitors can only read published groups, their published member profiles, and their photos; only UUIDs added to `admin_users` can change group/member data or upload to the public `member-photos` bucket.
 
@@ -23,7 +23,7 @@ The database schema enables row-level security. Public visitors can only read pu
 
 Uploads are stored as the original file bytes in Supabase Storage; the site does not resize, crop, filter, or recompress them. The 50 MB per-file bucket limit is configurable in `supabase/schema.sql` and the Supabase dashboard. The tree and catalogue use `object-fit: contain` so the full image remains visible.
 
-The selected group's family-tree export makes a PNG or an A3 landscape PDF with a personal QR code beneath each member. Each QR code points to `/groups/<group-slug>/members/<member-slug>` on the current site origin, so the public website must be deployed to a URL before printed codes can be scanned by others.
+The selected group's family-tree export makes a PNG or an A3 landscape PDF with a personal QR code beneath each member. Each QR code points to `/<group-slug>/<member-slug>` on the current site origin, so the public website must be deployed to a URL before printed codes can be scanned by others. Group slugs `admin`, `assets`, and `groups` are reserved.
 
 ## Commands
 

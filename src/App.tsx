@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
-import { BrowserRouter, Link, Route, Routes, useNavigate, useParams } from 'react-router-dom'
+import { BrowserRouter, Link, Navigate, Route, Routes, useNavigate, useParams } from 'react-router-dom'
 import { createClient, type Session } from '@supabase/supabase-js'
 import QRCode from 'qrcode'
 import {
@@ -68,16 +68,22 @@ function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : 'Something went wrong. Please try again.'
 }
 
+function slugify(value: string) {
+  return value.trim().normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+}
+
 function App() {
   return (
     <BrowserRouter>
       <div className="site-shell">
         <SiteHeader />
         <Routes>
-          <Route path="/" element={<GroupDirectoryPage />} />
-          <Route path="/groups/:groupSlug" element={<GroupPage />} />
-          <Route path="/groups/:groupSlug/members/:memberSlug" element={<MemberPage />} />
-          <Route path="/admin" element={<AdminPage />} />
+          <Route path="/" element={<AdminPage />} />
+          <Route path="/groups" element={<GroupDirectoryPage />} />
+          <Route path="/admin" element={<Navigate replace to="/" />} />
+          <Route path="/:groupSlug/:memberSlug" element={<MemberPage />} />
+          <Route path="/:groupSlug" element={<GroupPage />} />
           <Route path="*" element={<NotFoundPage />} />
         </Routes>
         <SiteFooter />
@@ -91,7 +97,7 @@ function SiteHeader() {
 
   return (
     <header className="site-header">
-      <Link aria-label="Membergram home" className="brand-lockup" to="/">
+      <Link aria-label="Membergram groups" className="brand-lockup" to="/groups">
         <span className="brand-mark"><Leaf size={19} strokeWidth={1.6} /></span>
         <span className="brand-name">Membergram<span>Stories &amp; sisterhood</span></span>
       </Link>
@@ -105,9 +111,9 @@ function SiteHeader() {
         {menuOpen ? <X size={20} /> : <Menu size={20} />}
       </button>
       <nav aria-label="Main navigation" className={menuOpen ? 'main-nav is-open' : 'main-nav'}>
-        <Link onClick={() => setMenuOpen(false)} to="/">Our groups</Link>
-        <a href="/#about" onClick={() => setMenuOpen(false)}>Our story</a>
-        <Link className="nav-admin" onClick={() => setMenuOpen(false)} to="/admin">
+        <Link onClick={() => setMenuOpen(false)} to="/groups">Our groups</Link>
+        <a href="/groups#about" onClick={() => setMenuOpen(false)}>Our story</a>
+        <Link className="nav-admin" onClick={() => setMenuOpen(false)} to="/">
           <LockKeyhole size={15} /> Admin
         </Link>
       </nav>
@@ -118,7 +124,7 @@ function SiteHeader() {
 function SiteFooter() {
   return (
     <footer className="site-footer">
-      <Link aria-label="Membergram home" className="footer-mark" to="/"><Leaf size={15} /></Link>
+      <Link aria-label="Membergram groups" className="footer-mark" to="/groups"><Leaf size={15} /></Link>
       <p>Growing together, one story at a time.</p>
       <span>Membergram · New Era Elegant Sisters International</span>
     </footer>
@@ -207,7 +213,7 @@ function GroupDirectoryPage() {
             <div className="empty-icon"><Leaf size={29} /></div>
             <h3>{supabase ? 'Our first branch is waiting.' : 'A family of purpose & grace.'}</h3>
             <p>{supabase ? 'Sign in to the admin area to create the first group and begin its family tree.' : 'Connect Supabase to open your sisterhood’s group pages and photo catalogues.'}</p>
-            <Link className="button button-gold" to="/admin"><LockKeyhole size={16} /> Open the admin area</Link>
+            <Link className="button button-gold" to="/"><LockKeyhole size={16} /> Open the admin area</Link>
           </div>
         )}
       </section>
@@ -222,7 +228,7 @@ function GroupDirectoryPage() {
 
 function GroupCard({ group, memberCount }: { group: Group; memberCount: number }) {
   return (
-    <Link className="group-card" to={`/groups/${group.slug}`}>
+    <Link className="group-card" to={`/${group.slug}`}>
       <div className="group-card-art">
         <span className="group-card-seal"><Leaf size={29} /><small>EST. IN<br />SISTERHOOD</small></span>
         <span className="group-card-leaf leaf-one"><Leaf size={24} /></span>
@@ -389,7 +395,7 @@ function GroupPage() {
             <div className="empty-icon"><Leaf size={29} /></div>
             <h3>{members.length ? 'No members found' : 'A new tree is taking root.'}</h3>
             <p>{members.length ? 'Try another name or role.' : `${group.name} is ready to grow. Add the first member and their photos from the admin area.`}</p>
-            {!members.length && <Link className="button button-gold" to="/admin"><LockKeyhole size={16} /> Open the admin area</Link>}
+            {!members.length && <Link className="button button-gold" to="/"><LockKeyhole size={16} /> Open the admin area</Link>}
           </div>
         )}
       </section>
@@ -418,7 +424,7 @@ function GroupPosterPreview({ group, members, photos }: { group: Group; members:
           {previewMembers.length ? (
             <div className="group-poster-members">
               {previewMembers.map((member, index) => (
-                <Link aria-label={`View ${member.full_name}'s catalogue`} className="group-poster-member" key={member.id} to={`/groups/${group.slug}/members/${member.slug}`}>
+                <Link aria-label={`View ${member.full_name}'s catalogue`} className="group-poster-member" key={member.id} to={`/${group.slug}/${member.slug}`}>
                   <span className="group-poster-avatar">
                     {photos[member.id] ? <img alt="" crossOrigin="anonymous" src={photos[member.id]} /> : <Camera size={17} />}
                     <i>{index + 1}</i>
@@ -442,7 +448,7 @@ function MemberTreeCard({ groupSlug, member, number, photo }: { groupSlug: strin
   const [photoError, setPhotoError] = useState(false)
 
   return (
-    <Link className="member-card" to={`/groups/${groupSlug}/members/${member.slug}`}>
+    <Link className="member-card" to={`/${groupSlug}/${member.slug}`}>
       <span className="member-number">{number}</span>
       <span className="portrait-frame">
         {photo && !photoError ? (
@@ -530,7 +536,7 @@ function MemberPage() {
 
   return (
     <main className="profile-page">
-      <div className="profile-back"><Link className="back-link" to={`/groups/${member.group.slug}`}><ArrowLeft size={15} /> Back to {member.group.name}</Link></div>
+      <div className="profile-back"><Link className="back-link" to={`/${member.group.slug}`}><ArrowLeft size={15} /> Back to {member.group.name}</Link></div>
       <section className="profile-intro">
         <span className="profile-kicker"><span /> A MEMBER'S STORY <span /></span>
         <div className="profile-avatar">
@@ -568,7 +574,7 @@ function MemberPage() {
 function ShareMember({ member }: { member: MemberWithPhotos }) {
   const [copied, setCopied] = useState(false)
   const [copyError, setCopyError] = useState('')
-  const shareUrl = `${window.location.origin}/groups/${member.group.slug}/members/${member.slug}`
+  const shareUrl = `${window.location.origin}/${member.group.slug}/${member.slug}`
 
   async function copyLink() {
     try {
@@ -635,7 +641,7 @@ function TreeExport({ group, members, photos, onClose }: { group: Group; members
     async function loadQRCodes() {
       const qrEntries = await Promise.all(members.map(async (member) => [
         member.id,
-        await QRCode.toDataURL(`${window.location.origin}/groups/${group.slug}/members/${member.slug}`, {
+        await QRCode.toDataURL(`${window.location.origin}/${group.slug}/${member.slug}`, {
           width: 110,
           margin: 0,
           errorCorrectionLevel: 'M',
@@ -954,8 +960,7 @@ function AdminDashboard() {
     setSuccess('')
     try {
       const sortOrder = members.length ? Math.max(...members.map((member) => member.sort_order)) + 1 : 0
-      const slug = name.trim().normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
-        .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+      const slug = slugify(name)
       const { data, error: insertError } = await supabase.from('members').insert({
         group_id: selectedGroup.id,
         full_name: name.trim(),
@@ -995,10 +1000,13 @@ function AdminDashboard() {
     setError('')
     setSuccess('')
     try {
-      const slug = groupName.trim().normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
-        .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+      const slug = slugify(groupName)
       if (!slug) {
         setError('Enter a group name that includes letters or numbers.')
+        return
+      }
+      if (['admin', 'assets', 'groups'].includes(slug)) {
+        setError(`"${slug}" is reserved for Membergram. Choose another group name.`)
         return
       }
       const { data, error: insertError } = await supabase.from('groups').insert({
@@ -1112,9 +1120,9 @@ function AdminDashboard() {
             <div className="member-admin-list">{members.map((member) => (
               <div className="member-admin-row" key={member.id}>
                 <span className="admin-avatar"><Leaf size={17} /></span>
-                <div className="admin-member-details"><strong>{member.full_name}</strong><span>{member.role_title || 'Member'} · /groups/{selectedGroup?.slug}/members/{member.slug}</span></div>
+                <div className="admin-member-details"><strong>{member.full_name}</strong><span>{member.role_title || 'Member'} · /{selectedGroup?.slug}/{member.slug}</span></div>
                 <button aria-label={`${member.published ? 'Hide' : 'Publish'} ${member.full_name}`} className={member.published ? 'publish-toggle is-published' : 'publish-toggle'} onClick={() => void togglePublished(member)} type="button"><span />{member.published ? 'Published' : 'Hidden'}</button>
-                <Link aria-label={`View ${member.full_name}'s catalogue`} className="icon-button" to={`/groups/${selectedGroup?.slug}/members/${member.slug}`}><ArrowUpRight size={17} /></Link>
+                <Link aria-label={`View ${member.full_name}'s catalogue`} className="icon-button" to={`/${selectedGroup?.slug}/${member.slug}`}><ArrowUpRight size={17} /></Link>
               </div>
             ))}</div>
           ) : selectedGroup ? <p className="admin-no-members">Your first member profile will appear in this group.</p> : <p className="admin-no-members">Create a group to begin building its family tree.</p>}
@@ -1149,7 +1157,7 @@ function PhotoPicker({ files, label, onChange }: { files: File[]; label: string;
 }
 
 function NotFoundPage() {
-  return <main className="not-found"><span className="empty-icon"><Leaf size={27} /></span><div className="eyebrow eyebrow-dark">THIS BRANCH IS STILL GROWING</div><h1>We couldn't find <em>her story.</em></h1><p>This member page may have moved or is not public yet.</p><Link className="button button-gold" to="/"><ArrowLeft size={15} /> Back to the family tree</Link></main>
+  return <main className="not-found"><span className="empty-icon"><Leaf size={27} /></span><div className="eyebrow eyebrow-dark">THIS BRANCH IS STILL GROWING</div><h1>We couldn't find <em>this page.</em></h1><p>This group or member page may have moved or is not public yet.</p><Link className="button button-gold" to="/groups"><ArrowLeft size={15} /> Browse groups</Link></main>
 }
 
 export default App
