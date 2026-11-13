@@ -31,3 +31,4 @@ The selected group's family-tree export makes a PNG or an A3 landscape PDF with 
 - `npm run build` — TypeScript check and production build
 - `npm run lint` — Oxlint
 - `npm run preview` — preview the production build
+- `npm start` — serve the production build on `PORT` (Railway)
