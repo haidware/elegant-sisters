@@ -5,6 +5,7 @@ create table if not exists public.groups (
   name text not null,
   slug text not null unique,
   description text,
+  member_count integer not null default 1 constraint groups_member_count_positive check (member_count > 0),
   sort_order integer not null default 0,
   published boolean not null default true,
   created_at timestamptz not null default now()
@@ -26,6 +27,30 @@ create table if not exists public.members (
   updated_at timestamptz not null default now(),
   unique (group_id, slug)
 );
+
+alter table public.groups add column if not exists member_count integer;
+update public.groups g
+set member_count = greatest(
+  (select count(*)::integer from public.members m where m.group_id = g.id),
+  1
+)
+where member_count is null;
+alter table public.groups alter column member_count set default 1;
+alter table public.groups alter column member_count set not null;
+
+do $$
+begin
+  if not exists (
+    select 1
+    from pg_constraint
+    where conname = 'groups_member_count_positive'
+      and conrelid = 'public.groups'::regclass
+  ) then
+    alter table public.groups
+      add constraint groups_member_count_positive check (member_count > 0);
+  end if;
+end
+$$;
 
 create table if not exists public.member_photos (
   id uuid primary key default gen_random_uuid(),

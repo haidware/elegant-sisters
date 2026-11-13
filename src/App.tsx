@@ -11,6 +11,7 @@ import {
   ChevronDown,
   ChevronRight,
   CircleHelp,
+  Copy,
   Download,
   ImagePlus,
   Leaf,
@@ -35,6 +36,7 @@ type Group = {
   slug: string
   name: string
   description: string | null
+  member_count: number
   sort_order: number
   published: boolean
 }
@@ -202,7 +204,7 @@ function GroupDirectoryPage() {
       }
       const { data: groupData, error: groupError } = await supabase
         .from('groups')
-        .select('id, slug, name, description, sort_order, published')
+        .select('id, slug, name, description, member_count, sort_order, published')
         .eq('published', true)
         .order('sort_order', { ascending: true })
       if (!active) return
@@ -307,7 +309,7 @@ function GroupPage() {
       if (!supabase) return
       const { data: groupData, error: groupError } = await supabase
         .from('groups')
-        .select('id, slug, name, description, sort_order, published')
+        .select('id, slug, name, description, member_count, sort_order, published')
         .eq('slug', groupSlug)
         .eq('published', true)
         .maybeSingle()
@@ -429,8 +431,8 @@ function GroupPage() {
           <div className="tree-wrap">
             <div className="tree-canopy" aria-hidden="true" />
             <div className="member-tree">
-              {filteredMembers.map((member, index) => (
-                <MemberTreeCard groupSlug={group.slug} key={member.id} member={member} number={index + 1} photo={member.portrait_url || legacyPhotos[member.id] || ''} />
+              {filteredMembers.map((member) => (
+                <MemberTreeCard groupSlug={group.slug} key={member.id} member={member} number={member.sort_order + 1} photo={member.portrait_url || legacyPhotos[member.id] || ''} />
               ))}
             </div>
             <div className="tree-roots"><span /><Leaf size={19} /><span /></div>
@@ -468,11 +470,11 @@ function GroupPosterPreview({ group, members, photos }: { group: Group; members:
           <div className="group-poster-heading"><span>✦ &nbsp; ✦ &nbsp; ✦</span><small>{group.name.toUpperCase()}</small><b>OUR FAMILY TREE</b></div>
           {previewMembers.length ? (
             <div className="group-poster-members">
-              {previewMembers.map((member, index) => (
+              {previewMembers.map((member) => (
                 <Link aria-label={`View ${member.full_name}'s catalogue`} className="group-poster-member" key={member.id} to={`/${group.slug}/${member.slug}`}>
                   <span className="group-poster-avatar">
                     {member.portrait_url || photos[member.id] ? <img alt="" crossOrigin="anonymous" src={member.portrait_url || photos[member.id]} /> : <Camera size={17} />}
-                    <i>{index + 1}</i>
+                    <i>{member.sort_order + 1}</i>
                   </span>
                   <strong>{member.full_name}</strong>
                 </Link>
@@ -533,7 +535,7 @@ function MemberPage() {
       if (!supabase) return
       const { data: groupData, error: groupError } = await supabase
         .from('groups')
-        .select('id, slug, name, description, sort_order, published')
+        .select('id, slug, name, description, member_count, sort_order, published')
         .eq('slug', groupSlug)
         .eq('published', true)
         .maybeSingle()
@@ -834,11 +836,11 @@ function TreeExport({ group, members, photos, onClose }: { group: Group; members
               <small>ROOTED IN SISTERHOOD · GROWING TOGETHER</small>
             </div>
             <div className="poster-members">
-              {members.map((member, index) => (
+              {members.map((member) => (
                 <div className="poster-member" key={member.id}>
                   <div className="poster-portrait">
                     {member.portrait_url || photos[member.id] ? <img alt="" crossOrigin="anonymous" src={member.portrait_url || photos[member.id]} /> : <Camera size={20} />}
-                    <span>{index + 1}</span>
+                    <span>{member.sort_order + 1}</span>
                   </div>
                   <strong>{member.full_name}</strong>
                   <small>{member.role_title || 'Sister'}</small>
@@ -954,9 +956,12 @@ function AdminDashboard({ onSignOut }: { onSignOut: () => void }) {
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [groupName, setGroupName] = useState('')
+  const [groupMemberCount, setGroupMemberCount] = useState('')
+  const [plannedMemberCount, setPlannedMemberCount] = useState('')
   const [groupDescription, setGroupDescription] = useState('')
   const [name, setName] = useState('')
   const [role, setRole] = useState('')
+  const [memberRank, setMemberRank] = useState('')
   const [bio, setBio] = useState('')
   const [treePortrait, setTreePortrait] = useState<File | null>(null)
   const [newMemberPhotos, setNewMemberPhotos] = useState<File[]>([])
@@ -968,12 +973,18 @@ function AdminDashboard({ onSignOut }: { onSignOut: () => void }) {
   const [catalogueVideo, setCatalogueVideo] = useState<File | null>(null)
   const [working, setWorking] = useState(false)
   const selectedGroup = groups.find((group) => group.id === selectedGroupId) ?? null
+  const usedTreeRanks = new Set(members.map((member) => member.sort_order + 1))
+  let nextTreeRank = 1
+  while (selectedGroup && nextTreeRank <= selectedGroup.member_count && usedTreeRanks.has(nextTreeRank)) {
+    nextTreeRank += 1
+  }
 
   const loadGroups = useCallback(async () => {
     try {
       const currentGroups = await adminRequest<Group[]>('/groups')
       setGroups(currentGroups)
       setSelectedGroupId((current) => currentGroups.some((group) => group.id === current) ? current : currentGroups[0]?.id ?? '')
+      setPlannedMemberCount(String(currentGroups[0]?.member_count ?? ''))
       if (!currentGroups.length) setLoading(false)
     } catch (reason) {
       setError(getErrorMessage(reason))
@@ -1130,13 +1141,21 @@ function AdminDashboard({ onSignOut }: { onSignOut: () => void }) {
       setError('A member can have up to 10 catalogue photos.')
       return
     }
+    const rank = Number(memberRank || nextTreeRank)
+    if (!pendingMemberId && (!Number.isInteger(rank) || rank < 1 || rank > selectedGroup.member_count)) {
+      setError(`Choose a tree rank between 1 and ${selectedGroup.member_count}.`)
+      return
+    }
+    if (!pendingMemberId && usedTreeRanks.has(rank)) {
+      setError(`Tree rank ${rank} is already assigned. Choose an unused rank.`)
+      return
+    }
     setWorking(true)
     setError('')
     setSuccess('')
     try {
       let memberId = pendingMemberId
       if (!memberId) {
-        const sortOrder = members.length ? Math.max(...members.map((member) => member.sort_order)) + 1 : 0
         const data = await adminRequest<{ id: string }>('/members', {
           method: 'POST',
           body: JSON.stringify({
@@ -1145,7 +1164,7 @@ function AdminDashboard({ onSignOut }: { onSignOut: () => void }) {
             slug: slugify(name),
             role_title: role.trim(),
             bio: bio.trim() || null,
-            sort_order: sortOrder,
+            tree_rank: rank,
           }),
         })
         memberId = data.id
@@ -1177,6 +1196,7 @@ function AdminDashboard({ onSignOut }: { onSignOut: () => void }) {
       setPendingMemberId('')
       setName('')
       setRole('')
+      setMemberRank('')
       setBio('')
       setTreePortrait(null)
       setNewMemberPhotos([])
@@ -1197,8 +1217,14 @@ function AdminDashboard({ onSignOut }: { onSignOut: () => void }) {
     setSuccess('')
     try {
       const slug = slugify(groupName)
+      const memberCount = Number(groupMemberCount)
       if (!slug) {
         setError('Enter a group name that includes letters or numbers.')
+        return
+      }
+
+      if (!Number.isInteger(memberCount) || memberCount < 1) {
+        setError('Enter a whole number of members greater than zero.')
         return
       }
       if (['admin', 'assets', 'groups'].includes(slug)) {
@@ -1211,10 +1237,12 @@ function AdminDashboard({ onSignOut }: { onSignOut: () => void }) {
           name: groupName.trim(),
           slug,
           description: groupDescription.trim() || null,
+          member_count: memberCount,
           sort_order: groups.length,
         }),
       })
       setGroupName('')
+      setGroupMemberCount('')
       setGroupDescription('')
       setLoading(true)
       setMembers([])
@@ -1226,6 +1254,33 @@ function AdminDashboard({ onSignOut }: { onSignOut: () => void }) {
       setSuccess('Group page created. You can now add its members.')
       await loadGroups()
       setSelectedGroupId(data.id)
+      setPlannedMemberCount(String(memberCount))
+    } catch (reason) {
+      setError(getErrorMessage(reason))
+    } finally {
+      setWorking(false)
+    }
+  }
+
+  async function updateGroupMemberCount(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!selectedGroup) return
+    const memberCount = Number(plannedMemberCount)
+    if (!Number.isInteger(memberCount) || memberCount < 1) {
+      setError('Enter a whole number of members greater than zero.')
+      return
+    }
+    setWorking(true)
+    setError('')
+    setSuccess('')
+    try {
+      await adminRequest(`/groups/${selectedGroup.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ member_count: memberCount }),
+      })
+      setPlannedMemberCount(String(memberCount))
+      setGroups((current) => current.map((group) => group.id === selectedGroup.id ? { ...group, member_count: memberCount } : group))
+      setSuccess(`Group size updated to ${memberCount} members.`)
     } catch (reason) {
       setError(getErrorMessage(reason))
     } finally {
@@ -1310,7 +1365,7 @@ function AdminDashboard({ onSignOut }: { onSignOut: () => void }) {
         {success && <div className="success-message" role="status"><Check size={17} /> {success}</div>}
         {groups.length > 0 && (
           <label className="group-admin-select">Choose a group to manage
-            <span className="select-wrap"><select disabled={Boolean(pendingMemberId)} onChange={(event) => { setLoading(true); setMembers([]); setCatalogueMember(''); setCataloguePortrait(null); setCataloguePhotos([]); setCatalogueVideo(null); setSelectedGroupId(event.target.value) }} value={selectedGroupId}>{groups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}</select><ChevronDown size={16} /></span>
+            <span className="select-wrap"><select disabled={Boolean(pendingMemberId)} onChange={(event) => { setLoading(true); setMembers([]); setMemberRank(''); setPlannedMemberCount(String(groups.find((group) => group.id === event.target.value)?.member_count ?? '')); setCatalogueMember(''); setCataloguePortrait(null); setCataloguePhotos([]); setCatalogueVideo(null); setSelectedGroupId(event.target.value) }} value={selectedGroupId}>{groups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}</select><ChevronDown size={16} /></span>
           </label>
         )}
         <div className="admin-grid">
@@ -1318,14 +1373,22 @@ function AdminDashboard({ onSignOut }: { onSignOut: () => void }) {
             <div className="admin-card-title"><span className="admin-step">01</span><div><h2>Create a group</h2><p>Give each community its own landing page and family tree.</p></div></div>
             <form className="admin-form" onSubmit={(event) => void createGroup(event)}>
               <label>Group name<input onChange={(event) => setGroupName(event.target.value)} placeholder="e.g. New Era Elegant Sisters" required value={groupName} /></label>
+              <label>Number of members<input min="1" onChange={(event) => setGroupMemberCount(event.target.value)} placeholder="e.g. 25" required step="1" type="number" value={groupMemberCount} /></label>
               <label>Introduction <span className="optional-label">Optional</span><textarea onChange={(event) => setGroupDescription(event.target.value)} placeholder="A short introduction to this community…" rows={3} value={groupDescription} /></label>
               <button className="button button-gold button-full" disabled={working || Boolean(pendingMemberId)} type="submit">{working ? <LoaderCircle className="spin" size={16} /> : <Plus size={16} />} Create group page</button>
             </form>
+            {selectedGroup && (
+              <form className="admin-form" onSubmit={(event) => void updateGroupMemberCount(event)}>
+                <label>Planned members for {selectedGroup.name}<input min="1" onChange={(event) => setPlannedMemberCount(event.target.value)} required step="1" type="number" value={plannedMemberCount} /></label>
+                <button className="button button-outline button-full" disabled={working || Boolean(pendingMemberId)} type="submit">Update group size</button>
+              </form>
+            )}
           </section>
 
           <section className="admin-card">
             <div className="admin-card-title"><span className="admin-step">02</span><div><h2>Add a member</h2><p>Create a profile in {selectedGroup?.name || 'a group'} and start their catalogue.</p></div></div>
             <form className="admin-form" onSubmit={(event) => void createMember(event)}>
+              <label>Tree rank <span className="optional-label">1–{selectedGroup?.member_count ?? 0}</span><input disabled={Boolean(pendingMemberId) || !selectedGroup} max={selectedGroup?.member_count} min="1" onChange={(event) => setMemberRank(event.target.value)} required step="1" type="number" value={memberRank || (nextTreeRank <= (selectedGroup?.member_count ?? 0) ? String(nextTreeRank) : '')} /></label>
               <label>Full name<input disabled={Boolean(pendingMemberId)} onChange={(event) => setName(event.target.value)} placeholder="e.g. Roseline Osipitan" required value={name} /></label>
               <label>Title or role<input disabled={Boolean(pendingMemberId)} onChange={(event) => setRole(event.target.value)} placeholder="e.g. President, Adviser, Member" value={role} /></label>
               <label>Their story <span className="optional-label">Optional</span><textarea disabled={Boolean(pendingMemberId)} onChange={(event) => setBio(event.target.value)} placeholder="A short introduction…" rows={3} value={bio} /></label>
@@ -1352,13 +1415,24 @@ function AdminDashboard({ onSignOut }: { onSignOut: () => void }) {
           </section>
         </div>
 
+        <section aria-labelledby="group-links-title" className="group-links-admin">
+          <div className="members-admin-heading">
+            <div><div className="eyebrow eyebrow-dark">GROUP PAGES</div><h2 id="group-links-title">Share each <em>sisterhood.</em></h2></div>
+            <span className="member-count">{groups.length} {groups.length === 1 ? 'link' : 'links'}</span>
+          </div>
+          <p className="group-links-intro">Each link opens its group's family tree and member catalogues. Scan or download its QR code to share the page.</p>
+          {groups.length ? (
+            <div className="group-share-list">{groups.map((group) => <AdminGroupShare key={group.id} group={group} />)}</div>
+          ) : <p className="admin-no-members">Create a group to generate its public link and QR code.</p>}
+        </section>
+
         <section className="members-admin">
-          <div className="members-admin-heading"><div><div className="eyebrow eyebrow-dark">YOUR TREE · {selectedGroup?.name || 'CHOOSE A GROUP'}</div><h2>Member <em>profiles.</em></h2></div><span className="member-count">{members.length} {members.length === 1 ? 'member' : 'members'}</span></div>
+          <div className="members-admin-heading"><div><div className="eyebrow eyebrow-dark">YOUR TREE · {selectedGroup?.name || 'CHOOSE A GROUP'}</div><h2>Member <em>profiles.</em></h2></div><span className="member-count">{members.length} / {selectedGroup?.member_count ?? 0} members</span></div>
           {loading && selectedGroup ? <div className="loading-state"><LoaderCircle className="spin" size={19} /> Loading members…</div> : members.length ? (
             <div className="member-admin-list">{members.map((member) => (
               <div className="member-admin-row" key={member.id}>
                 <span className="admin-avatar">{member.portrait_url ? <img alt="" src={member.portrait_url} /> : <Leaf size={17} />}</span>
-                <div className="admin-member-details"><strong>{member.full_name}</strong><span>{member.role_title || 'Member'} · /{selectedGroup?.slug}/{member.slug}</span></div>
+                <div className="admin-member-details"><strong>#{member.sort_order + 1} · {member.full_name}</strong><span>{member.role_title || 'Member'} · /{selectedGroup?.slug}/{member.slug}</span></div>
                 {!member.media_ready && <button className="button button-outline" onClick={() => resumeMemberUploads(member)} type="button">Resume uploads</button>}
                 <button aria-label={`${member.published ? 'Hide' : 'Publish'} ${member.full_name}`} className={member.published ? 'publish-toggle is-published' : 'publish-toggle'} disabled={!member.media_ready} onClick={() => void togglePublished(member)} type="button"><span />{member.media_ready ? (member.published ? 'Published' : 'Hidden') : 'Uploads pending'}</button>
                 <Link aria-label={`View ${member.full_name}'s catalogue`} className="icon-button" to={`/${selectedGroup?.slug}/${member.slug}`}><ArrowUpRight size={17} /></Link>
@@ -1368,6 +1442,63 @@ function AdminDashboard({ onSignOut }: { onSignOut: () => void }) {
         </section>
       </div>
     </main>
+  )
+}
+
+function AdminGroupShare({ group }: { group: Group }) {
+  const [qrCode, setQrCode] = useState('')
+  const [error, setError] = useState('')
+  const [copied, setCopied] = useState(false)
+  const groupUrl = new URL(`/${group.slug}`, window.location.origin).toString()
+
+  useEffect(() => {
+    let active = true
+    void QRCode.toDataURL(groupUrl, {
+      width: 240,
+      margin: 2,
+      errorCorrectionLevel: 'H',
+      color: { dark: '#173c2c', light: '#ffffff' },
+    }).then((dataUrl) => {
+      if (active) setQrCode(dataUrl)
+    }).catch((reason: unknown) => {
+      if (active) setError(getErrorMessage(reason))
+    })
+    return () => { active = false }
+  }, [groupUrl])
+
+  async function copyGroupLink() {
+    if (!navigator.clipboard) {
+      setError('Clipboard access is unavailable in this browser.')
+      return
+    }
+    try {
+      await navigator.clipboard.writeText(groupUrl)
+      setError('')
+      setCopied(true)
+    } catch (reason) {
+      setError(getErrorMessage(reason))
+    }
+  }
+
+  return (
+    <article className="group-share-card">
+      <div className="group-share-details">
+        <strong>{group.name}</strong>
+        <a className="group-share-url" href={groupUrl} rel="noreferrer" target="_blank">{groupUrl}<ArrowUpRight size={14} /></a>
+        <div className="group-share-actions">
+          <button className="button button-outline" onClick={() => void copyGroupLink()} type="button">
+            {copied ? <Check size={14} /> : <Copy size={14} />}{copied ? 'Copied' : 'Copy link'}
+          </button>
+          {qrCode ? (
+            <a className="button button-outline" download={`${group.slug}-qr-code.png`} href={qrCode}><Download size={14} /> Download QR</a>
+          ) : (
+            <button className="button button-outline" disabled type="button"><LoaderCircle className="spin" size={14} /> Preparing QR</button>
+          )}
+        </div>
+        {error && <span className="group-share-error" role="alert">{error}</span>}
+      </div>
+      {qrCode && <img alt={`QR code linking to ${group.name}`} className="group-share-qr" src={qrCode} />}
+    </article>
   )
 }
 

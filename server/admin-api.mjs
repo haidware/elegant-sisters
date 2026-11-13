@@ -209,7 +209,7 @@ async function handleAdminRequest(request, response, url) {
 
   if (pathname === '/api/admin/groups' && request.method === 'GET') {
     const { data, error } = await client.from('groups')
-      .select('id, slug, name, description, sort_order, published')
+      .select('id, slug, name, description, member_count, sort_order, published')
       .order('sort_order', { ascending: true })
     if (error) throw new ApiError(502, error.message)
     sendJson(response, 200, data)
@@ -220,17 +220,46 @@ async function handleAdminRequest(request, response, url) {
     const body = await readJson(request)
     const name = typeof body.name === 'string' ? body.name.trim() : ''
     const slug = typeof body.slug === 'string' ? slugify(body.slug) : ''
+    const memberCount = body.member_count
     if (!name || !slug) throw new ApiError(400, 'Enter a group name that includes letters or numbers.')
+    if (!Number.isInteger(memberCount) || memberCount < 1) throw new ApiError(400, 'Enter a whole number of members greater than zero.')
     if (['admin', 'assets', 'groups'].includes(slug)) throw new ApiError(400, `"${slug}" is reserved for Membergram.`)
     const { data, error } = await client.from('groups').insert({
       name,
       slug,
       description: typeof body.description === 'string' ? body.description.trim() || null : null,
+      member_count: memberCount,
       sort_order: Number.isInteger(body.sort_order) && body.sort_order >= 0 ? body.sort_order : 0,
       published: true,
     }).select('id').single()
     if (error) throw new ApiError(400, error.message)
     sendJson(response, 201, { id: data.id })
+    return
+  }
+
+  const groupMatch = pathname.match(/^\/api\/admin\/groups\/([^/]+)$/)
+  if (groupMatch && request.method === 'PATCH') {
+    const groupId = requireUuid(groupMatch[1], 'Group ID')
+    const body = await readJson(request)
+    const memberCount = body.member_count
+    if (!Number.isInteger(memberCount) || memberCount < 1) throw new ApiError(400, 'Enter a whole number of members greater than zero.')
+    const { data: group, error: groupError } = await client.from('groups')
+      .select('id')
+      .eq('id', groupId)
+      .maybeSingle()
+    if (groupError) throw new ApiError(502, groupError.message)
+    if (!group) throw new ApiError(404, 'The selected group was not found.')
+    const { data: members, error: memberError } = await client.from('members')
+      .select('sort_order')
+      .eq('group_id', groupId)
+    if (memberError) throw new ApiError(502, memberError.message)
+    const highestRank = (members ?? []).reduce((rank, member) => Math.max(rank, member.sort_order + 1), 0)
+    if (memberCount < highestRank || memberCount < (members ?? []).length) {
+      throw new ApiError(400, `The group size cannot be less than its ${members?.length ?? 0} existing members or highest assigned rank (${highestRank}).`)
+    }
+    const { error } = await client.from('groups').update({ member_count: memberCount }).eq('id', groupId)
+    if (error) throw new ApiError(400, error.message)
+    sendJson(response, 200, { member_count: memberCount })
     return
   }
 
@@ -250,14 +279,30 @@ async function handleAdminRequest(request, response, url) {
     const groupId = requireUuid(body.group_id, 'Group ID')
     const fullName = typeof body.full_name === 'string' ? body.full_name.trim() : ''
     const slug = typeof body.slug === 'string' ? slugify(body.slug) : ''
+    const treeRank = body.tree_rank
     if (!fullName || !slug) throw new ApiError(400, 'Enter a member name that includes letters or numbers.')
+    if (!Number.isInteger(treeRank) || treeRank < 1) throw new ApiError(400, 'Enter a valid tree rank.')
+    const { data: group, error: groupError } = await client.from('groups')
+      .select('member_count')
+      .eq('id', groupId)
+      .maybeSingle()
+    if (groupError) throw new ApiError(502, groupError.message)
+    if (!group) throw new ApiError(404, 'The selected group was not found.')
+    if (treeRank > group.member_count) throw new ApiError(400, `Tree rank must be between 1 and ${group.member_count}.`)
+    const { data: existingRank, error: rankError } = await client.from('members')
+      .select('id')
+      .eq('group_id', groupId)
+      .eq('sort_order', treeRank - 1)
+      .maybeSingle()
+    if (rankError) throw new ApiError(502, rankError.message)
+    if (existingRank) throw new ApiError(409, `Tree rank ${treeRank} is already assigned. Choose an unused rank.`)
     const { data, error } = await client.from('members').insert({
       group_id: groupId,
       full_name: fullName,
       slug,
       role_title: typeof body.role_title === 'string' ? body.role_title.trim() || 'Sister' : 'Sister',
       bio: typeof body.bio === 'string' ? body.bio.trim() || null : null,
-      sort_order: Number.isInteger(body.sort_order) && body.sort_order >= 0 ? body.sort_order : 0,
+      sort_order: treeRank - 1,
       published: false,
       media_ready: false,
     }).select('id').single()
