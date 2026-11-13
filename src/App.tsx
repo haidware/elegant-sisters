@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type FormEvent, type TouchEvent } from 'react'
+import { useCallback, useEffect, useRef, useState, type CSSProperties, type FormEvent, type TouchEvent } from 'react'
 import { BrowserRouter, Link, Navigate, Route, Routes, useParams } from 'react-router-dom'
 import { createClient } from '@supabase/supabase-js'
 import QRCode from 'qrcode'
@@ -431,8 +431,25 @@ function GroupPage() {
           <div className="tree-wrap">
             <div className="tree-canopy" aria-hidden="true" />
             <div className="member-tree">
-              {filteredMembers.map((member) => (
-                <MemberTreeCard groupSlug={group.slug} key={member.id} member={member} number={member.sort_order + 1} photo={member.portrait_url || legacyPhotos[member.id] || ''} />
+              {buildMemberTreeTiers(filteredMembers).map((tier, tierIndex) => (
+                <div className="member-tree-tier" key={tierIndex}>
+                  {tier.centerLabel && (
+                    <div className="tree-group-sign" style={{ gridColumn: '3 / 6' }}>
+                      <Sparkles size={16} />
+                      <strong>{group.name}</strong>
+                    </div>
+                  )}
+                  {tier.members.map((member, index) => (
+                    <MemberTreeCard
+                      groupSlug={group.slug}
+                      key={member.id}
+                      member={member}
+                      number={member.sort_order + 1}
+                      photo={member.portrait_url || legacyPhotos[member.id] || ''}
+                      style={{ gridColumn: getTreeTierColumn(index, tier.members.length, tier.centerLabel) }}
+                    />
+                  ))}
+                </div>
               ))}
             </div>
             <div className="tree-roots"><span /><Leaf size={19} /><span /></div>
@@ -462,22 +479,34 @@ function GroupPage() {
 }
 
 function GroupPosterPreview({ group, members, photos }: { group: Group; members: Member[]; photos: Record<string, string> }) {
-  const previewMembers = members.slice(0, 35)
+  const tiers = buildMemberTreeTiers(members)
   return (
     <div aria-label={`${group.name} family tree preview`} className="group-poster-wrap">
       <div className="group-poster">
         <div className="group-poster-border">
           <div className="group-poster-heading"><span>✦ &nbsp; ✦ &nbsp; ✦</span><small>{group.name.toUpperCase()}</small><b>OUR FAMILY TREE</b></div>
-          {previewMembers.length ? (
+          {members.length ? (
             <div className="group-poster-members">
-              {previewMembers.map((member) => (
-                <Link aria-label={`View ${member.full_name}'s catalogue`} className="group-poster-member" key={member.id} to={`/${group.slug}/${member.slug}`}>
-                  <span className="group-poster-avatar">
-                    {member.portrait_url || photos[member.id] ? <img alt="" crossOrigin="anonymous" src={member.portrait_url || photos[member.id]} /> : <Camera size={17} />}
-                    <i>{member.sort_order + 1}</i>
-                  </span>
-                  <strong>{member.full_name}</strong>
-                </Link>
+              {tiers.map((tier, tierIndex) => (
+                <div className="group-poster-tier" key={tierIndex}>
+                  {tier.centerLabel && <div className="group-poster-center" style={{ gridColumn: '3 / 6' }}>{group.name}</div>}
+                  {tier.members.map((member, index) => (
+                    <Link
+                      aria-label={`View ${member.full_name}'s catalogue`}
+                      className="group-poster-member"
+                      key={member.id}
+                      style={{ gridColumn: getTreeTierColumn(index, tier.members.length, tier.centerLabel) }}
+                      to={`/${group.slug}/${member.slug}`}
+                    >
+                      <span className="group-poster-avatar">
+                        {member.portrait_url || photos[member.id] ? <img alt="" crossOrigin="anonymous" src={member.portrait_url || photos[member.id]} /> : <Camera size={17} />}
+                        <i>{member.sort_order + 1}</i>
+                      </span>
+                      <strong>{member.full_name}</strong>
+                      <small>{member.role_title || 'Member'}</small>
+                    </Link>
+                  ))}
+                </div>
               ))}
             </div>
           ) : (
@@ -491,11 +520,49 @@ function GroupPosterPreview({ group, members, photos }: { group: Group; members:
   )
 }
 
-function MemberTreeCard({ groupSlug, member, number, photo }: { groupSlug: string; member: Member; number: number; photo: string }) {
+type MemberTreeTier = { members: Member[]; centerLabel: boolean }
+
+function buildMemberTreeTiers(members: Member[]): MemberTreeTier[] {
+  const tiers: MemberTreeTier[] = []
+  let offset = 0
+  for (const size of [1, 2, 5, 6]) {
+    if (offset >= members.length) break
+    const tierMembers = members.slice(offset, offset + size)
+    tiers.push({ members: tierMembers, centerLabel: false })
+    offset += tierMembers.length
+  }
+  if (offset < members.length) {
+    const centerMembers = members.slice(offset, offset + 4)
+    tiers.push({ members: centerMembers, centerLabel: true })
+    offset += centerMembers.length
+  }
+  while (offset < members.length) {
+    const tierMembers = members.slice(offset, offset + 7)
+    tiers.push({ members: tierMembers, centerLabel: false })
+    offset += tierMembers.length
+  }
+  return tiers
+}
+
+function getTreeTierColumn(index: number, memberCount: number, centerLabel: boolean) {
+  if (centerLabel) return index < 2 ? index + 1 : index + 4
+  const columnsByCount: Record<number, number[]> = {
+    1: [4],
+    2: [3, 5],
+    3: [3, 4, 5],
+    4: [2, 3, 5, 6],
+    5: [2, 3, 4, 5, 6],
+    6: [1, 2, 3, 5, 6, 7],
+    7: [1, 2, 3, 4, 5, 6, 7],
+  }
+  return columnsByCount[memberCount]?.[index] ?? index + 1
+}
+
+function MemberTreeCard({ groupSlug, member, number, photo, style }: { groupSlug: string; member: Member; number: number; photo: string; style?: CSSProperties }) {
   const [photoError, setPhotoError] = useState(false)
 
   return (
-    <Link className="member-card" to={`/${groupSlug}/${member.slug}`}>
+    <Link className="member-card" style={style} to={`/${groupSlug}/${member.slug}`}>
       <span className="member-number">{number}</span>
       <span className="portrait-frame">
         {photo && !photoError ? (
@@ -836,16 +903,21 @@ function TreeExport({ group, members, photos, onClose }: { group: Group; members
               <small>ROOTED IN SISTERHOOD · GROWING TOGETHER</small>
             </div>
             <div className="poster-members">
-              {members.map((member) => (
-                <div className="poster-member" key={member.id}>
-                  <div className="poster-portrait">
-                    {member.portrait_url || photos[member.id] ? <img alt="" crossOrigin="anonymous" src={member.portrait_url || photos[member.id]} /> : <Camera size={20} />}
-                    <span>{member.sort_order + 1}</span>
-                  </div>
-                  <strong>{member.full_name}</strong>
-                  <small>{member.role_title || 'Sister'}</small>
-                  {qrCodes[member.id] ? <img alt={`Scan to view ${member.full_name}'s catalogue`} className="poster-qr" src={qrCodes[member.id]} /> : <span className="poster-qr-placeholder" />}
-                  <span className="poster-scan">SCAN HER STORY</span>
+              {buildMemberTreeTiers(members).map((tier, tierIndex) => (
+                <div className="poster-tier" key={tierIndex}>
+                  {tier.centerLabel && <div className="poster-group-sign" style={{ gridColumn: '3 / 6' }}>{group.name}</div>}
+                  {tier.members.map((member, index) => (
+                    <div className="poster-member" key={member.id} style={{ gridColumn: getTreeTierColumn(index, tier.members.length, tier.centerLabel) }}>
+                      <div className="poster-portrait">
+                        {member.portrait_url || photos[member.id] ? <img alt="" crossOrigin="anonymous" src={member.portrait_url || photos[member.id]} /> : <Camera size={20} />}
+                        <span>{member.sort_order + 1}</span>
+                      </div>
+                      <strong>{member.full_name}</strong>
+                      <small>{member.role_title || 'Sister'}</small>
+                      {qrCodes[member.id] ? <img alt={`Scan to view ${member.full_name}'s catalogue`} className="poster-qr" src={qrCodes[member.id]} /> : <span className="poster-qr-placeholder" />}
+                      <span className="poster-scan">SCAN HER STORY</span>
+                    </div>
+                  ))}
                 </div>
               ))}
             </div>
