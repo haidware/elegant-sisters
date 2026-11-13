@@ -70,6 +70,7 @@ type MemberPhoto = {
 type MemberWithPhotos = Member & { photos: MemberPhoto[]; group: Group }
 type UploadableMedia = { file: File; mediaType: 'image' | 'video' }
 type MediaUploadResult = { uploaded: File[]; failed: File[]; errors: string[] }
+const elegantSistersGroupSlug = 'new-era-elegant-sisters-international'
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
@@ -427,8 +428,8 @@ function GroupPage() {
         {!supabase && <ConnectionNotice />}
         {loading ? (
           <div className="loading-state"><LoaderCircle className="spin" size={22} /> Growing this family tree…</div>
-        ) : filteredMembers.length ? (
-          <div className="tree-wrap">
+        ) : filteredMembers.length || (!search.trim() && group.member_count > 0) ? (
+          <div className={group.slug === elegantSistersGroupSlug ? 'tree-wrap is-elegant-sisters' : 'tree-wrap'}>
             <div className="tree-canopy" aria-hidden="true" />
             <div className="member-tree">
               {buildMemberTreeTiers(filteredMembers, group.member_count).map((tier, tierIndex) => (
@@ -483,11 +484,11 @@ function GroupPage() {
 function GroupPosterPreview({ group, members, photos }: { group: Group; members: Member[]; photos: Record<string, string> }) {
   const tiers = buildMemberTreeTiers(members, group.member_count)
   return (
-    <div aria-label={`${group.name} family tree preview`} className="group-poster-wrap">
-      <div className="group-poster">
-        <div className="group-poster-border">
+    <div aria-label={`${group.name} family tree preview`} className={group.slug === elegantSistersGroupSlug ? 'group-poster-wrap is-elegant-sisters' : 'group-poster-wrap'}>
+      <div className={group.slug === elegantSistersGroupSlug ? 'group-poster is-elegant-sisters' : 'group-poster'}>
+        <div className={group.slug === elegantSistersGroupSlug ? 'group-poster-border is-elegant-sisters' : 'group-poster-border'}>
           <div className="group-poster-heading"><span>✦ &nbsp; ✦ &nbsp; ✦</span><small>{group.name.toUpperCase()}</small><b>OUR FAMILY TREE</b></div>
-          {members.length ? (
+          {members.length || group.member_count > 0 ? (
             <div className="group-poster-members">
               {tiers.map((tier, tierIndex) => (
                 <div className="group-poster-tier" key={tierIndex}>
@@ -919,7 +920,7 @@ function TreeExport({ group, members, photos, onClose }: { group: Group; members
         </div>
         {error && <div className="inline-error" role="alert">{error}</div>}
         <div className="poster-preview-scroll">
-          <div className="tree-poster" ref={posterRef}>
+          <div className={group.slug === elegantSistersGroupSlug ? 'tree-poster is-elegant-sisters' : 'tree-poster'} ref={posterRef}>
             <div className="poster-title">
               <span className="poster-flourish">✦ &nbsp; ✦ &nbsp; ✦</span>
               <p>{group.name}</p>

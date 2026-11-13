@@ -88,6 +88,22 @@
 .member-card-arrow { display: none; color: var(--gold); }
 .tree-roots { display: flex; justify-content: center; align-items: center; gap: 15px; width: 185px; margin: 29px auto 0; color: #83966d; }
 .tree-roots span { height: 1px; flex: 1; background: #d9d4c2; }
+.tree-wrap.is-elegant-sisters { padding: 31px 36px 34px; border: 0; background: #fffaf0 url('/elegant-sisters-tree.svg') center / 100% 100% no-repeat; }
+.tree-wrap.is-elegant-sisters > .tree-canopy { display: none; }
+.tree-wrap.is-elegant-sisters .member-tree { max-width: 100%; gap: 5px; }
+.tree-wrap.is-elegant-sisters .member-tree-tier { gap: 5px 4px; }
+.tree-wrap.is-elegant-sisters .member-tree-tier:not(:first-child)::before { top: -5px; height: 5px; border-color: #9c6b27; border-width: 2px; }
+.tree-wrap.is-elegant-sisters .member-card { max-width: 145px; padding: 0 2px 3px; }
+.tree-wrap.is-elegant-sisters .member-number { top: -2px; left: calc(50% - 39px); width: 23px; height: 23px; border: 2px solid #e8bb39; outline: 1px solid #14261a; background: #123d28; font-size: 11px; }
+.tree-wrap.is-elegant-sisters .portrait-frame { width: clamp(52px, 9vw, 94px); height: clamp(52px, 9vw, 94px); padding: 4px; border: 4px double #dc9d25; box-shadow: 0 0 0 2px #193c26, 0 0 0 5px rgba(238, 184, 45, .72), 0 5px 9px rgba(35, 44, 27, .23); }
+.tree-wrap.is-elegant-sisters .member-name { margin-top: 5px; padding: 3px 6px; border: 1px solid #f4d45c; border-radius: 9px; background: linear-gradient(180deg, #25553a, #102d1f); font-size: clamp(7px, 1vw, 10px); }
+.tree-wrap.is-elegant-sisters .member-role { margin-top: 2px; padding: 3px 6px; border: 1px solid #9d6e24; border-radius: 10px; background: linear-gradient(180deg, #ffe96b, #eab92a); font-size: clamp(7px, .9vw, 9px); }
+.tree-wrap.is-elegant-sisters .member-tree-placeholder { min-height: 120px; opacity: .92; }
+.tree-wrap.is-elegant-sisters .member-tree-placeholder .portrait-placeholder { background: linear-gradient(145deg, #faf3d6, #ddc989); color: #446039; }
+.tree-wrap.is-elegant-sisters .member-name-placeholder { height: 15px; border-color: #a7b27c; background: linear-gradient(180deg, rgba(37, 85, 58, .78), rgba(16, 45, 31, .82)); }
+.tree-wrap.is-elegant-sisters .member-role-placeholder { height: 13px; margin-top: 3px; border-color: #d3a82e; background: linear-gradient(180deg, rgba(255, 233, 107, .8), rgba(234, 185, 42, .82)); }
+.tree-wrap.is-elegant-sisters .tree-group-sign { min-height: 106px; border: 4px double #e7bd37; border-radius: 48%; outline: 2px solid #193c26; outline-offset: -9px; box-shadow: 0 0 0 4px rgba(201, 145, 38, .52); }
+.tree-wrap.is-elegant-sisters .tree-group-sign strong { font-size: clamp(10px, 1.4vw, 15px); }
 .empty-tree { min-height: 270px; padding: 47px 24px; border: 1px solid #eee6d6; background: #fbf8ef; display: flex; align-items: center; flex-direction: column; text-align: center; }
 .empty-icon { width: 54px; height: 54px; display: grid; place-items: center; border: 1px solid #d7c499; border-radius: 50%; color: #967945; background: #fffdf7; }
 .empty-tree h3 { margin: 17px 0 7px; color: var(--forest); font: 500 25px/1.2 var(--serif); }
@@ -156,8 +172,20 @@
 .group-stats span { margin-top: 3px; color: #898a80; font-size: 9px; }
 .group-poster-wrap { position: relative; width: 100%; max-width: 600px; justify-self: end; padding: 0 0 16px 15px; }
 .group-poster-wrap::before { content: ''; position: absolute; z-index: 0; inset: 14px 0 0 26px; border: 1px solid #d5bb78; background: #f0e4c2; }
+.group-poster-wrap.is-elegant-sisters::before { display: none; }
 .group-poster { position: relative; z-index: 1; min-height: 350px; padding: 9px; border: 1px solid #dfd1af; background: #fff; box-shadow: 0 13px 32px rgba(50,49,35,.12); transform: rotate(-.6deg); }
 .group-poster-border { min-height: 350px; padding: 13px 13px 8px; border: 3px double #c8933e; background: radial-gradient(ellipse 26px 11px at 2% 14%, rgba(76, 125, 53, .15) 0 68%, transparent 74%), radial-gradient(ellipse 24px 10px at 4% 44%, rgba(92, 145, 63, .13) 0 68%, transparent 74%), radial-gradient(ellipse 26px 11px at 98% 20%, rgba(76, 125, 53, .15) 0 68%, transparent 74%), radial-gradient(ellipse 24px 10px at 96% 58%, rgba(92, 145, 63, .13) 0 68%, transparent 74%), radial-gradient(ellipse at 50% 38%, #fffefb, #faf5e8); }
+.group-poster.is-elegant-sisters { min-height: 0; padding: 0; border: 0; background: transparent; box-shadow: none; transform: none; }
+.group-poster-border.is-elegant-sisters { min-height: 0; padding: 28px 28px 20px; border: 0; background: #fffaf0 url('/elegant-sisters-tree.svg') center / 100% 100% no-repeat; }
+.group-poster-border.is-elegant-sisters .group-poster-heading { display: none; }
+.group-poster-border.is-elegant-sisters .group-poster-members { gap: 4px; }
+.group-poster-border.is-elegant-sisters .group-poster-tier { gap: 3px 2px; }
+.group-poster-border.is-elegant-sisters .group-poster-tier:not(:first-child)::before { border-width: 2px; }
+.group-poster-border.is-elegant-sisters .group-poster-avatar { width: clamp(27px, 4vw, 42px); height: clamp(27px, 4vw, 42px); border: 3px double #d99b24; box-shadow: 0 0 0 2px #1c4329; }
+.group-poster-border.is-elegant-sisters .group-poster-member > strong { padding: 2px 4px; border-color: #e6c344; border-radius: 7px; font-size: 7px; }
+.group-poster-border.is-elegant-sisters .group-poster-member > small { min-height: 12px; padding: 2px 4px; border-color: #a57422; border-radius: 7px; font-size: 6px; }
+.group-poster-border.is-elegant-sisters .group-poster-member.is-empty { opacity: .95; }
+.group-poster-border.is-elegant-sisters .group-poster-center { border: 4px double #e9c137; border-radius: 48%; outline: 2px solid #1c4329; outline-offset: -8px; }
 .group-poster-heading { height: 54px; display: flex; align-items: center; flex-direction: column; justify-content: center; color: #966e25; }
 .group-poster-heading > span { font: 9px/1.05 var(--serif); letter-spacing: .23em; }
 .group-poster-heading > small { max-width: 100%; overflow: hidden; margin-top: 3px; color: #886b37; font: 600 6px/1.25 'DM Sans', Arial, sans-serif; letter-spacing: .16em; text-overflow: ellipsis; white-space: nowrap; }
@@ -330,6 +358,15 @@
 .modal-heading p { color: var(--muted); font-size: 10px; }
 .poster-preview-scroll { flex: 1; min-height: 0; overflow: auto; border: 1px solid #e7dfd0; background: #ede8dc; }
 .tree-poster { width: 1020px; min-height: 780px; margin: 0 auto; padding: 26px 30px 21px; color: var(--forest); background: radial-gradient(ellipse 70px 26px at 2% 10%, rgba(76, 125, 53, .15) 0 68%, transparent 74%), radial-gradient(ellipse 60px 23px at 3% 34%, rgba(92, 145, 63, .13) 0 68%, transparent 74%), radial-gradient(ellipse 70px 26px at 98% 13%, rgba(76, 125, 53, .15) 0 68%, transparent 74%), radial-gradient(ellipse 60px 23px at 97% 42%, rgba(92, 145, 63, .13) 0 68%, transparent 74%), #fffaf0; border: 12px double #c49a48; }
+.tree-poster.is-elegant-sisters { min-height: 800px; padding: 34px 40px 30px; border: 0; background: #fffaf0 url('/elegant-sisters-tree.svg') center / 100% 100% no-repeat; }
+.tree-poster.is-elegant-sisters .poster-title, .tree-poster.is-elegant-sisters .poster-footer { display: none; }
+.tree-poster.is-elegant-sisters .poster-tier { gap: 7px 8px; }
+.tree-poster.is-elegant-sisters .poster-tier:not(:first-child)::before { border-width: 2px; }
+.tree-poster.is-elegant-sisters .poster-portrait { border: 4px double #dc9d25; box-shadow: 0 0 0 2px #193c26, 0 0 0 5px rgba(238, 184, 45, .68); }
+.tree-poster.is-elegant-sisters .poster-portrait > span { top: -7px; left: -7px; width: 21px; height: 21px; border: 2px solid #e8bb39; outline: 1px solid #14261a; font-size: 10px; }
+.tree-poster.is-elegant-sisters .poster-member > strong { padding: 4px 7px; border-color: #f4d45c; border-radius: 10px; font-size: 10px; }
+.tree-poster.is-elegant-sisters .poster-member > small { border-color: #9d6e24; border-radius: 10px; font-size: 8px; }
+.tree-poster.is-elegant-sisters .poster-group-sign { border: 5px double #e7bd37; border-radius: 48%; outline: 2px solid #193c26; outline-offset: -10px; box-shadow: 0 0 0 5px rgba(201, 145, 38, .52); }
 .poster-title { text-align: center; padding: 5px 0 22px; }
 .poster-flourish { display: block; color: #ad8c4c; font: 14px/1.4 var(--serif); letter-spacing: .4em; }
 .poster-title > p { margin: 6px 0 1px; color: #997941; font: 600 11px/1.2 'DM Sans', Arial, sans-serif; letter-spacing: .29em; }
