@@ -22,8 +22,8 @@ import {
   Plus,
   Play,
   Printer,
-  QrCode,
   Search,
+  Share2,
   ShieldCheck,
   Sparkles,
   Upload,
@@ -463,7 +463,7 @@ function GroupPage() {
               onClick={() => setExportOpen(true)}
               type="button"
             >
-              <QrCode size={16} /> Share the tree
+              <Share2 size={16} /> Share the tree
             </button>
           </div>
         </div>
@@ -947,20 +947,50 @@ function PhotoLightbox({
   )
 }
 
+const treePosterWidth = 1400
+const treePosterHeight = 990
+
 function TreeExport({ group, members, photos, onClose }: { group: Group; members: Member[]; photos: Record<string, string>; onClose: () => void }) {
   const posterRef = useRef<HTMLDivElement>(null)
+  const posterPreviewRef = useRef<HTMLDivElement>(null)
   const [working, setWorking] = useState(false)
+  const [previewScale, setPreviewScale] = useState(1)
+  const [captureLayout, setCaptureLayout] = useState(false)
   const [error, setError] = useState('')
+
+  useEffect(() => {
+    const preview = posterPreviewRef.current
+    if (!preview) return
+    const updateScale = () => setPreviewScale(Math.min(preview.clientWidth / treePosterWidth, 1))
+    const observer = new ResizeObserver(updateScale)
+    observer.observe(preview)
+    updateScale()
+    return () => observer.disconnect()
+  }, [])
 
   async function exportImage(kind: 'png' | 'pdf') {
     if (!posterRef.current) return
     setWorking(true)
     setError('')
+    let previewOverflow = ''
+    let previewMaxHeight = ''
+    let previewFlex = ''
     try {
       const [{ default: html2canvas }, { default: jsPDF }] = await Promise.all([
         import('html2canvas'),
         import('jspdf'),
       ])
+      setCaptureLayout(true)
+      await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()))
+      const preview = posterPreviewRef.current
+      if (preview) {
+        previewOverflow = preview.style.overflow
+        previewMaxHeight = preview.style.maxHeight
+        previewFlex = preview.style.flex
+        preview.style.overflow = 'visible'
+        preview.style.maxHeight = 'none'
+        preview.style.flex = 'none'
+      }
       await Promise.all(Array.from(posterRef.current.querySelectorAll('img')).map((image) => {
         if (image.complete) {
           return image.naturalWidth > 0
@@ -972,7 +1002,16 @@ function TreeExport({ group, members, photos, onClose }: { group: Group; members
           image.addEventListener('error', () => reject(new Error('A poster image could not be loaded. Check that the image is publicly accessible in Supabase Storage.')), { once: true })
         })
       }))
-      const canvas = await html2canvas(posterRef.current, { backgroundColor: '#fffaf0', scale: 3, useCORS: true, logging: false })
+      const canvas = await html2canvas(posterRef.current, {
+        backgroundColor: '#fffaf0',
+        height: treePosterHeight,
+        scale: 3,
+        useCORS: true,
+        logging: false,
+        width: treePosterWidth,
+        windowHeight: treePosterHeight,
+        windowWidth: treePosterWidth,
+      })
       const fileName = `${group.slug}-group-tree`
       if (kind === 'png') {
         const anchor = document.createElement('a')
@@ -993,6 +1032,13 @@ function TreeExport({ group, members, photos, onClose }: { group: Group; members
     } catch (reason) {
       setError(getErrorMessage(reason))
     } finally {
+      const preview = posterPreviewRef.current
+      if (preview) {
+        preview.style.overflow = previewOverflow
+        preview.style.maxHeight = previewMaxHeight
+        preview.style.flex = previewFlex
+      }
+      setCaptureLayout(false)
       setWorking(false)
     }
   }
@@ -1013,37 +1059,46 @@ function TreeExport({ group, members, photos, onClose }: { group: Group; members
           <button aria-label="Close export" className="icon-button" disabled={working} onClick={onClose} type="button"><X size={20} /></button>
         </div>
         {error && <div className="inline-error" role="alert">{error}</div>}
-        <div className="poster-preview-scroll">
-          <div className={group.slug === elegantSistersGroupSlug ? 'tree-poster is-elegant-sisters' : 'tree-poster'} ref={posterRef}>
-            <div className="poster-title">
-              <span className="poster-flourish">✦ &nbsp; ✦ &nbsp; ✦</span>
-              <p>{group.name}</p>
-              <h3>MEMBER<br />TREE</h3>
-              <span className="poster-rule" />
-              <small>ROOTED IN COMMUNITY · GROWING TOGETHER</small>
-            </div>
-            <div className="poster-members">
-              {buildMemberTreeTiers(members, group.member_count).map((tier, tierIndex) => (
-                <div className="poster-tier" key={tierIndex}>
-                  {tier.centerLabel && <div className="poster-group-sign" style={{ gridColumn: '3 / 6' }}>{group.name}</div>}
-                  {tier.members.map(({ member, rank }, index) => member ? (
-                    <div className="poster-member" key={member.id} style={{ gridColumn: getTreeTierColumn(index, tier.members.length, tier.centerLabel) }}>
-                      <div className="poster-portrait">
-                        {member.portrait_url || photos[member.id] ? <img alt="" crossOrigin="anonymous" src={member.portrait_url || photos[member.id]} /> : <Camera size={20} />}
-                        <span>{rank}</span>
+        <div className="poster-preview-scroll" ref={posterPreviewRef}>
+          <div className="poster-preview-canvas" style={{
+            height: treePosterHeight * (captureLayout ? 1 : previewScale),
+            width: treePosterWidth * (captureLayout ? 1 : previewScale),
+          }}>
+            <div
+              className={group.slug === elegantSistersGroupSlug ? 'tree-poster is-elegant-sisters' : 'tree-poster'}
+              ref={posterRef}
+              style={{ transform: captureLayout ? 'none' : `scale(${previewScale})` }}
+            >
+              <div className="poster-title">
+                <span className="poster-flourish">✦ &nbsp; ✦ &nbsp; ✦</span>
+                <p>{group.name}</p>
+                <h3>MEMBER<br />TREE</h3>
+                <span className="poster-rule" />
+                <small>ROOTED IN COMMUNITY · GROWING TOGETHER</small>
+              </div>
+              <div className="poster-members">
+                {buildMemberTreeTiers(members, group.member_count).map((tier, tierIndex) => (
+                  <div className="poster-tier" key={tierIndex}>
+                    {tier.centerLabel && <div className="poster-group-sign" style={{ gridColumn: '3 / 6' }}>{group.name}</div>}
+                    {tier.members.map(({ member, rank }, index) => member ? (
+                      <div className="poster-member" key={member.id} style={{ gridColumn: getTreeTierColumn(index, tier.members.length, tier.centerLabel) }}>
+                        <div className="poster-portrait">
+                          {member.portrait_url || photos[member.id] ? <img alt="" crossOrigin="anonymous" src={member.portrait_url || photos[member.id]} /> : <Camera size={20} />}
+                          <span>{rank}</span>
+                        </div>
+                        <strong>{member.full_name}</strong>
+                        <small>{member.role_title || 'Member'}</small>
                       </div>
-                      <strong>{member.full_name}</strong>
-                      <small>{member.role_title || 'Member'}</small>
-                    </div>
-                  ) : (
-                    <div aria-label={`Available member position ${rank}`} className="poster-member is-empty" key={`slot-${rank}`} style={{ gridColumn: getTreeTierColumn(index, tier.members.length, tier.centerLabel) }}>
-                      <div className="poster-portrait"><Camera size={20} /><span>{rank}</span></div>
-                    </div>
-                  ))}
-                </div>
-              ))}
+                    ) : (
+                      <div aria-label={`Available member position ${rank}`} className="poster-member is-empty" key={`slot-${rank}`} style={{ gridColumn: getTreeTierColumn(index, tier.members.length, tier.centerLabel) }}>
+                        <div className="poster-portrait"><Camera size={20} /><span>{rank}</span></div>
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </div>
+              <div className="poster-footer">A COMMUNITY OF STORIES &amp; CONNECTIONS</div>
             </div>
-            <div className="poster-footer">A COMMUNITY OF STORIES &amp; CONNECTIONS</div>
           </div>
         </div>
         <div className="export-actions">
@@ -1057,7 +1112,7 @@ function TreeExport({ group, members, photos, onClose }: { group: Group; members
             </button>
           </div>
         </div>
-        {!ready && !error && <p className="export-hint"><LoaderCircle className="spin" size={14} /> Preparing portraits and QR codes…</p>}
+        {!ready && !error && <p className="export-hint"><LoaderCircle className="spin" size={14} /> Preparing member portraits…</p>}
       </section>
     </div>
   )
