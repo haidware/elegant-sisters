@@ -949,29 +949,8 @@ function PhotoLightbox({
 
 function TreeExport({ group, members, photos, onClose }: { group: Group; members: Member[]; photos: Record<string, string>; onClose: () => void }) {
   const posterRef = useRef<HTMLDivElement>(null)
-  const [qrCodes, setQrCodes] = useState<Record<string, string>>({})
   const [working, setWorking] = useState(false)
   const [error, setError] = useState('')
-
-  useEffect(() => {
-    let active = true
-    async function loadQRCodes() {
-      const qrEntries = await Promise.all(members.map(async (member) => [
-        member.id,
-        await QRCode.toDataURL(`${window.location.origin}/${group.slug}/${member.slug}`, {
-          width: 110,
-          margin: 0,
-          errorCorrectionLevel: 'M',
-          color: { dark: '#173c2c', light: '#ffffff' },
-        }),
-      ] as const))
-      if (active) {
-        setQrCodes(Object.fromEntries(qrEntries))
-      }
-    }
-    void loadQRCodes().catch((reason: unknown) => { if (active) setError(getErrorMessage(reason)) })
-    return () => { active = false }
-  }, [group.slug, members])
 
   async function exportImage(kind: 'png' | 'pdf') {
     if (!posterRef.current) return
@@ -993,7 +972,7 @@ function TreeExport({ group, members, photos, onClose }: { group: Group; members
           image.addEventListener('error', () => reject(new Error('A poster image could not be loaded. Check that the image is publicly accessible in Supabase Storage.')), { once: true })
         })
       }))
-      const canvas = await html2canvas(posterRef.current, { backgroundColor: '#fffaf0', scale: 2, useCORS: true, logging: false })
+      const canvas = await html2canvas(posterRef.current, { backgroundColor: '#fffaf0', scale: 3, useCORS: true, logging: false })
       const fileName = `${group.slug}-group-tree`
       if (kind === 'png') {
         const anchor = document.createElement('a')
@@ -1004,7 +983,8 @@ function TreeExport({ group, members, photos, onClose }: { group: Group; members
         const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a3' })
         const pageWidth = pdf.internal.pageSize.getWidth()
         const pageHeight = pdf.internal.pageSize.getHeight()
-        const scale = Math.min(pageWidth / canvas.width, pageHeight / canvas.height)
+        const margin = 8
+        const scale = Math.min((pageWidth - margin * 2) / canvas.width, (pageHeight - margin * 2) / canvas.height)
         const width = canvas.width * scale
         const height = canvas.height * scale
         pdf.addImage(canvas.toDataURL('image/png'), 'PNG', (pageWidth - width) / 2, (pageHeight - height) / 2, width, height)
@@ -1023,13 +1003,13 @@ function TreeExport({ group, members, photos, onClose }: { group: Group; members
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [onClose, working])
 
-  const ready = members.length > 0 && Object.keys(qrCodes).length === members.length
+  const ready = members.length > 0
 
   return (
     <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget && !working) onClose() }} role="presentation">
       <section aria-labelledby="export-title" aria-modal="true" className="export-modal" role="dialog">
         <div className="modal-heading">
-          <div><div className="eyebrow eyebrow-dark">SHARE YOUR GROUP</div><h2 id="export-title">The member tree, <em>to go.</em></h2><p>Each member's portrait and QR code links to their photo catalogue.</p></div>
+          <div><div className="eyebrow eyebrow-dark">SHARE YOUR GROUP</div><h2 id="export-title">The member tree, <em>to go.</em></h2><p>A clean, portrait-led tree designed for sharing and single-page printing.</p></div>
           <button aria-label="Close export" className="icon-button" disabled={working} onClick={onClose} type="button"><X size={20} /></button>
         </div>
         {error && <div className="inline-error" role="alert">{error}</div>}
@@ -1054,8 +1034,6 @@ function TreeExport({ group, members, photos, onClose }: { group: Group; members
                       </div>
                       <strong>{member.full_name}</strong>
                       <small>{member.role_title || 'Member'}</small>
-                      {qrCodes[member.id] ? <img alt={`Scan to view ${member.full_name}'s catalogue`} className="poster-qr" src={qrCodes[member.id]} /> : <span className="poster-qr-placeholder" />}
-                      <span className="poster-scan">SCAN THEIR STORY</span>
                     </div>
                   ) : (
                     <div aria-label={`Available member position ${rank}`} className="poster-member is-empty" key={`slot-${rank}`} style={{ gridColumn: getTreeTierColumn(index, tier.members.length, tier.centerLabel) }}>
@@ -1069,7 +1047,7 @@ function TreeExport({ group, members, photos, onClose }: { group: Group; members
           </div>
         </div>
         <div className="export-actions">
-          <span><QrCode size={16} /> {members.length} personal QR {members.length === 1 ? 'code' : 'codes'}</span>
+          <span><ImagePlus size={16} /> {members.length} {members.length === 1 ? 'member' : 'members'} · A3 landscape · one page</span>
           <div>
             <button className="button button-outline" disabled={!ready || working} onClick={() => void exportImage('png')} type="button">
               {working ? <LoaderCircle className="spin" size={16} /> : <Download size={16} />} Download image
