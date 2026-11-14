@@ -334,25 +334,27 @@ function GroupPage() {
         return
       }
       setGroup(groupData)
-      const { data, error: queryError } = await supabase
+      let memberQuery = supabase
         .from('members')
         .select('id, group_id, slug, full_name, role_title, bio, portrait_url, portrait_storage_path, media_ready, sort_order, published')
         .eq('group_id', groupData.id)
-        .eq('published', true)
-        .order('sort_order', { ascending: true })
+      if (groupData.slug !== elegantSistersGroupSlug) {
+        memberQuery = memberQuery.eq('published', true)
+      }
+      const { data, error: queryError } = await memberQuery.order('sort_order', { ascending: true })
       if (!active) return
       if (queryError) {
         setError(queryError.message)
         setErrorSlug(groupSlug)
       } else {
-        const publishedMembers = data ?? []
-        setMembers(publishedMembers)
+        const loadedMembers = data ?? []
+        setMembers(loadedMembers)
         setLegacyPhotos({})
-        if (publishedMembers.length) {
+        if (loadedMembers.length) {
           const { data: photoData, error: photoError } = await supabase
             .from('member_photos')
             .select('member_id, image_url, media_type')
-            .in('member_id', publishedMembers.map((member) => member.id))
+            .in('member_id', loadedMembers.map((member) => member.id))
             .eq('media_type', 'image')
             .order('sort_order', { ascending: true })
           if (active && photoError) {
@@ -420,6 +422,7 @@ function GroupPage() {
   if (loading) return <main className="page-main loading-state"><LoaderCircle className="spin" size={22} /> Opening this group…</main>
   if (error && errorSlug === groupSlug) return <main className="page-main"><div className="inline-error" role="alert">{error}</div></main>
   if (!group) return <NotFoundPage />
+  const isElegantTree = group.slug === elegantSistersGroupSlug
 
   return (
     <main>
@@ -472,9 +475,18 @@ function GroupPage() {
         {loading ? (
           <div className="loading-state"><LoaderCircle className="spin" size={22} /> Growing this member tree…</div>
         ) : filteredMembers.length || (!search.trim() && group.member_count > 0) ? (
-          <div className={group.slug === elegantSistersGroupSlug ? 'tree-wrap is-elegant-sisters' : 'tree-wrap'}>
+          <div className={isElegantTree ? `tree-wrap is-elegant-sisters${search.trim() ? ' is-searching' : ''}` : 'tree-wrap'}>
             <div className="tree-canopy" aria-hidden="true" />
-            <div className="member-tree">
+            {isElegantTree && !search.trim() && (
+              <ElegantTreeComposition
+                groupName={group.name}
+                members={filteredMembers}
+                photos={legacyPhotos}
+                plannedMemberCount={group.member_count}
+                onSelectMember={openCatalogue}
+              />
+            )}
+            <div className={`member-tree${isElegantTree && !search.trim() ? ' is-responsive-tree' : ''}`}>
               {buildMemberTreeTiers(filteredMembers, group.member_count).map((tier, tierIndex) => (
                 <div className="member-tree-tier" key={tierIndex}>
                   {tier.centerLabel && (
@@ -580,11 +592,100 @@ function getTreeTierColumn(index: number, memberCount: number, centerLabel: bool
   return columnsByCount[memberCount]?.[index] ?? index + 1
 }
 
-function MemberTreeCard({ member, number, photo, onSelectMember, style }: { member: Member; number: number; photo: string; onSelectMember: (memberId: string) => void; style?: CSSProperties }) {
-  const [photoError, setPhotoError] = useState(false)
+type ElegantTreePosition = CSSProperties & { '--portrait-width': string; '--member-name-overlap': string }
+
+function getElegantTreePosition(rank: number): ElegantTreePosition {
+  const rows: Array<{ ranks: number[]; centers: number[]; top: number; width: number; portraitWidth: number; nameOverlap: number }> = [
+    { ranks: [1], centers: [50], top: 0.5, width: 23, portraitWidth: 70, nameOverlap: 3.4 },
+    { ranks: [2, 3], centers: [31, 69], top: 4.5, width: 18, portraitWidth: 70, nameOverlap: 3 },
+    { ranks: [4, 5, 6, 7, 8], centers: [14, 30, 46, 62, 78], top: 18.5, width: 16, portraitWidth: 78, nameOverlap: 3.6 },
+    { ranks: [9, 10, 11, 12, 13, 14], centers: [12, 27, 42, 57, 72, 87], top: 33.5, width: 15, portraitWidth: 84, nameOverlap: 3.8 },
+    { ranks: [15, 16, 17, 18], centers: [12, 27, 73, 88], top: 48.5, width: 15, portraitWidth: 74, nameOverlap: 3 },
+    { ranks: [19, 20, 21, 22, 23, 24, 25], centers: [11, 24, 37, 50, 63, 76, 89], top: 62.5, width: 13, portraitWidth: 80, nameOverlap: 3.2 },
+    { ranks: [26, 27, 28, 29, 30, 31, 32], centers: [8, 21.5, 35, 48.5, 62, 75.5, 89], top: 74, width: 13, portraitWidth: 82, nameOverlap: 1.5 },
+    { ranks: [33, 34, 35], centers: [33, 47, 67], top: 86, width: 16, portraitWidth: 78, nameOverlap: 3.5 },
+  ]
+  const row = rows.find(({ ranks }) => ranks.includes(rank))
+  const index = row?.ranks.indexOf(rank) ?? -1
+  if (!row || index < 0) return { left: '50%', top: '98%', width: '13%', '--portrait-width': '70%', '--member-name-overlap': '-2vw' }
+  return {
+    left: `${row.centers[index]}%`,
+    top: `${row.top}%`,
+    width: `${row.width}%`,
+    '--portrait-width': `${row.portraitWidth}%`,
+    '--member-name-overlap': `-${row.nameOverlap}vw`,
+  }
+}
+
+function ElegantTreeComposition({ groupName, members, photos, plannedMemberCount, onSelectMember, exportLayout = false }: {
+  groupName: string
+  members: Member[]
+  photos: Record<string, string>
+  plannedMemberCount: number
+  onSelectMember?: (memberId: string) => void
+  exportLayout?: boolean
+}) {
+  const membersByRank = new Map(members.map((member) => [member.sort_order + 1, member]))
+  const highestRank = Math.max(0, ...membersByRank.keys())
+  const slotCount = Math.min(35, Math.max(plannedMemberCount, highestRank))
 
   return (
-    <button aria-haspopup="dialog" aria-label={`Open ${member.full_name}'s catalogue`} className="member-card" onClick={() => onSelectMember(member.id)} style={style} type="button">
+    <div className={`elegant-tree-composition${exportLayout ? ' is-export' : ''}`}>
+      <img
+        alt=""
+        aria-hidden="true"
+        className={exportLayout ? 'poster-tree-artwork' : 'elegant-tree-template-artwork'}
+        crossOrigin="anonymous"
+        src="/elegant-sisters-tree-template.png"
+      />
+      {Array.from({ length: slotCount }, (_, index) => {
+        const rank = index + 1
+        const member = membersByRank.get(rank)
+        const position = getElegantTreePosition(rank)
+        if (member) {
+          return (
+            <MemberTreeCard
+              className="member-card elegant-template-member"
+              key={member.id}
+              member={member}
+              number={rank}
+              onSelectMember={onSelectMember}
+              photo={member.portrait_url || photos[member.id] || ''}
+              style={position}
+            />
+          )
+        }
+        return (
+          <div
+            aria-label={`Open position ${rank}`}
+            className="member-card elegant-template-member is-empty"
+            data-rank={rank}
+            key={`slot-${rank}`}
+            style={position}
+          >
+            <span className="member-number">{rank}</span>
+            <span className="portrait-frame"><span className="portrait-placeholder"><Camera size={24} strokeWidth={1.3} /></span></span>
+            <span className="member-name">Open position</span>
+            <span className="member-role">Rank {rank}</span>
+          </div>
+        )
+      })}
+      <div aria-label={groupName} className="elegant-template-group-name">{groupName}</div>
+    </div>
+  )
+}
+
+function MemberTreeCard({ member, number, photo, onSelectMember, style, className = 'member-card' }: {
+  member: Member
+  number: number
+  photo: string
+  onSelectMember?: (memberId: string) => void
+  style?: CSSProperties
+  className?: string
+}) {
+  const [photoError, setPhotoError] = useState(false)
+  const contents = (
+    <>
       <span aria-hidden="true" className="fruit-vine"><i /><i /></span>
       <span className="member-number">{number}</span>
       <span className="portrait-frame">
@@ -596,8 +697,17 @@ function MemberTreeCard({ member, number, photo, onSelectMember, style }: { memb
       </span>
       <span className="member-name">{member.full_name}</span>
       <span className="member-role">{member.role_title || 'Member'}</span>
-    </button>
+    </>
   )
+
+  if (onSelectMember) {
+    return (
+      <button aria-haspopup="dialog" aria-label={`Open ${member.full_name}'s catalogue`} className={className} data-rank={number} onClick={() => onSelectMember(member.id)} style={style} type="button">
+        {contents}
+      </button>
+    )
+  }
+  return <div className={className} data-rank={number} style={style}>{contents}</div>
 }
 
 function MemberCatalogueDialog({ catalogueError, group, loading, member, onClose, photos }: {
@@ -950,7 +1060,7 @@ function PhotoLightbox({
 const treePosterWidth = 1400
 const treePosterHeight = 990
 const elegantTreePosterWidth = 768
-const elegantTreePosterHeight = 800
+const elegantTreePosterHeight = 811
 
 function TreeExport({ group, members, photos, onClose }: { group: Group; members: Member[]; photos: Record<string, string>; onClose: () => void }) {
   const posterRef = useRef<HTMLDivElement>(null)
@@ -1113,34 +1223,43 @@ function TreeExport({ group, members, photos, onClose }: { group: Group; members
               ref={posterRef}
               style={{ height: posterHeight, transform: captureLayout ? 'none' : `scale(${previewScale})`, width: posterWidth }}
             >
-              {isElegantTree && (
-                <img alt="" aria-hidden="true" className="poster-tree-artwork" crossOrigin="anonymous" src="/elegant-sisters-tree.svg?v=4" />
-              )}
-              <div className="poster-title">
-                <span className="poster-flourish">✦ &nbsp; ✦ &nbsp; ✦</span>
-                <p>{group.name}</p>
-                <h3>MEMBER<br />TREE</h3>
-                <span className="poster-rule" />
-                <small>ROOTED IN COMMUNITY · GROWING TOGETHER</small>
-              </div>
-              <div className="poster-members">
-                {exportTiers.map((tier, tierIndex) => (
-                  <div className={tier.centerLabel && !tier.members.length ? 'poster-tier is-sign-only' : 'poster-tier'} key={tierIndex}>
-                    {tier.centerLabel && <div className="poster-group-sign" style={{ gridColumn: '3 / 6', gridRow: 1 }}>{group.name}</div>}
-                    {tier.members.map(({ member, rank }, index) => member && (
-                      <div className="poster-member" key={member.id} style={{ gridColumn: getTreeTierColumn(index, tier.members.length, tier.centerLabel), gridRow: 1 }}>
-                        <div className="poster-portrait">
-                          {member.portrait_url || photos[member.id] ? <img alt="" crossOrigin="anonymous" src={member.portrait_url || photos[member.id]} /> : <Camera size={20} />}
-                          <span>{rank}</span>
-                        </div>
-                        <strong>{member.full_name}</strong>
-                        <small>{member.role_title || 'Member'}</small>
+              {isElegantTree ? (
+                <ElegantTreeComposition
+                  exportLayout
+                  groupName={group.name}
+                  members={members}
+                  photos={photos}
+                  plannedMemberCount={group.member_count}
+                />
+              ) : (
+                <>
+                  <div className="poster-title">
+                    <span className="poster-flourish">✦ &nbsp; ✦ &nbsp; ✦</span>
+                    <p>{group.name}</p>
+                    <h3>MEMBER<br />TREE</h3>
+                    <span className="poster-rule" />
+                    <small>ROOTED IN COMMUNITY · GROWING TOGETHER</small>
+                  </div>
+                  <div className="poster-members">
+                    {exportTiers.map((tier, tierIndex) => (
+                      <div className={tier.centerLabel && !tier.members.length ? 'poster-tier is-sign-only' : 'poster-tier'} key={tierIndex}>
+                        {tier.centerLabel && <div className="poster-group-sign" style={{ gridColumn: '3 / 6', gridRow: 1 }}>{group.name}</div>}
+                        {tier.members.map(({ member, rank }, index) => member && (
+                          <div className="poster-member" key={member.id} style={{ gridColumn: getTreeTierColumn(index, tier.members.length, tier.centerLabel), gridRow: 1 }}>
+                            <div className="poster-portrait">
+                              {member.portrait_url || photos[member.id] ? <img alt="" crossOrigin="anonymous" src={member.portrait_url || photos[member.id]} /> : <Camera size={20} />}
+                              <span>{rank}</span>
+                            </div>
+                            <strong>{member.full_name}</strong>
+                            <small>{member.role_title || 'Member'}</small>
+                          </div>
+                        ))}
                       </div>
                     ))}
                   </div>
-                ))}
-              </div>
-              <div className="poster-footer">A COMMUNITY OF STORIES &amp; CONNECTIONS</div>
+                  <div className="poster-footer">A COMMUNITY OF STORIES &amp; CONNECTIONS</div>
+                </>
+              )}
             </div>
           </div>
         </div>
