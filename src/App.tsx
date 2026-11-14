@@ -949,6 +949,8 @@ function PhotoLightbox({
 
 const treePosterWidth = 1400
 const treePosterHeight = 990
+const elegantTreePosterWidth = 768
+const elegantTreePosterHeight = 800
 
 function TreeExport({ group, members, photos, onClose }: { group: Group; members: Member[]; photos: Record<string, string>; onClose: () => void }) {
   const posterRef = useRef<HTMLDivElement>(null)
@@ -957,16 +959,19 @@ function TreeExport({ group, members, photos, onClose }: { group: Group; members
   const [previewScale, setPreviewScale] = useState(1)
   const [captureLayout, setCaptureLayout] = useState(false)
   const [error, setError] = useState('')
+  const isElegantTree = group.slug === elegantSistersGroupSlug
+  const posterWidth = isElegantTree ? elegantTreePosterWidth : treePosterWidth
+  const posterHeight = isElegantTree ? elegantTreePosterHeight : treePosterHeight
 
   useEffect(() => {
     const preview = posterPreviewRef.current
     if (!preview) return
-    const updateScale = () => setPreviewScale(Math.min(preview.clientWidth / treePosterWidth, 1))
+    const updateScale = () => setPreviewScale(Math.min(preview.clientWidth / posterWidth, 1))
     const observer = new ResizeObserver(updateScale)
     observer.observe(preview)
     updateScale()
     return () => observer.disconnect()
-  }, [])
+  }, [posterWidth])
 
   async function exportImage(kind: 'png' | 'pdf') {
     if (!posterRef.current) return
@@ -1006,10 +1011,9 @@ function TreeExport({ group, members, photos, onClose }: { group: Group; members
           image.addEventListener('error', () => reject(new Error('A poster image could not be loaded. Check that the image is publicly accessible in Supabase Storage.')), { once: true })
         })
       }))
-      const isElegantTree = group.slug === elegantSistersGroupSlug
       const canvas = await html2canvas(posterRef.current, {
         backgroundColor: isElegantTree ? null : '#fffaf0',
-        height: treePosterHeight,
+        height: posterHeight,
         scale: 3,
         useCORS: true,
         logging: false,
@@ -1020,9 +1024,9 @@ function TreeExport({ group, members, photos, onClose }: { group: Group; members
             clonedPoster.querySelector('.poster-tree-artwork')?.remove()
           }
         } : undefined,
-        width: treePosterWidth,
-        windowHeight: treePosterHeight,
-        windowWidth: treePosterWidth,
+        width: posterWidth,
+        windowHeight: posterHeight,
+        windowWidth: posterWidth,
       })
       let exportCanvas = canvas
       if (isElegantTree) {
@@ -1052,7 +1056,7 @@ function TreeExport({ group, members, photos, onClose }: { group: Group; members
         anchor.href = exportCanvas.toDataURL('image/png')
         anchor.click()
       } else {
-        const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a3' })
+        const pdf = new jsPDF({ orientation: isElegantTree ? 'portrait' : 'landscape', unit: 'mm', format: 'a4' })
         const pageWidth = pdf.internal.pageSize.getWidth()
         const pageHeight = pdf.internal.pageSize.getHeight()
         const margin = 8
@@ -1085,7 +1089,7 @@ function TreeExport({ group, members, photos, onClose }: { group: Group; members
   const ready = members.length > 0
   const posterClassName = [
     'tree-poster',
-    group.slug === elegantSistersGroupSlug ? 'is-elegant-sisters' : '',
+    isElegantTree ? 'is-elegant-sisters' : '',
     members.length <= 5 ? 'is-sparse' : '',
   ].filter(Boolean).join(' ')
   const exportTiers = buildMemberTreeTiers(members, group.member_count)
@@ -1101,15 +1105,15 @@ function TreeExport({ group, members, photos, onClose }: { group: Group; members
         {error && <div className="inline-error" role="alert">{error}</div>}
         <div className="poster-preview-scroll" ref={posterPreviewRef}>
           <div className="poster-preview-canvas" style={{
-            height: treePosterHeight * (captureLayout ? 1 : previewScale),
-            width: treePosterWidth * (captureLayout ? 1 : previewScale),
+            height: posterHeight * (captureLayout ? 1 : previewScale),
+            width: posterWidth * (captureLayout ? 1 : previewScale),
           }}>
             <div
               className={posterClassName}
               ref={posterRef}
-              style={{ transform: captureLayout ? 'none' : `scale(${previewScale})` }}
+              style={{ height: posterHeight, transform: captureLayout ? 'none' : `scale(${previewScale})`, width: posterWidth }}
             >
-              {group.slug === elegantSistersGroupSlug && (
+              {isElegantTree && (
                 <img alt="" aria-hidden="true" className="poster-tree-artwork" crossOrigin="anonymous" src="/elegant-sisters-tree.svg?v=4" />
               )}
               <div className="poster-title">
@@ -1122,9 +1126,9 @@ function TreeExport({ group, members, photos, onClose }: { group: Group; members
               <div className="poster-members">
                 {exportTiers.map((tier, tierIndex) => (
                   <div className={tier.centerLabel && !tier.members.length ? 'poster-tier is-sign-only' : 'poster-tier'} key={tierIndex}>
-                    {tier.centerLabel && <div className="poster-group-sign" style={{ gridColumn: '3 / 6' }}>{group.name}</div>}
+                    {tier.centerLabel && <div className="poster-group-sign" style={{ gridColumn: '3 / 6', gridRow: 1 }}>{group.name}</div>}
                     {tier.members.map(({ member, rank }, index) => member && (
-                      <div className="poster-member" key={member.id} style={{ gridColumn: getTreeTierColumn(index, tier.members.length, tier.centerLabel) }}>
+                      <div className="poster-member" key={member.id} style={{ gridColumn: getTreeTierColumn(index, tier.members.length, tier.centerLabel), gridRow: 1 }}>
                         <div className="poster-portrait">
                           {member.portrait_url || photos[member.id] ? <img alt="" crossOrigin="anonymous" src={member.portrait_url || photos[member.id]} /> : <Camera size={20} />}
                           <span>{rank}</span>
@@ -1141,7 +1145,7 @@ function TreeExport({ group, members, photos, onClose }: { group: Group; members
           </div>
         </div>
         <div className="export-actions">
-          <span><ImagePlus size={16} /> {members.length} {members.length === 1 ? 'member' : 'members'} · A3 landscape · one page</span>
+          <span><ImagePlus size={16} /> {members.length} {members.length === 1 ? 'member' : 'members'} · A4 {isElegantTree ? 'portrait' : 'landscape'} · one page</span>
           <div>
             <button className="button button-outline" disabled={!ready || working} onClick={() => void exportImage('png')} type="button">
               {working ? <LoaderCircle className="spin" size={16} /> : <Download size={16} />} Download image
