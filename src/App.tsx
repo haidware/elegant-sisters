@@ -73,8 +73,14 @@ type MediaUploadResult = { uploaded: File[]; failed: File[]; errors: string[] }
 const elegantSistersGroupSlug = 'new-era-elegant-sisters-international'
 const elegantSistersMemberCapacity = 36
 
-function getGroupMemberCapacity(group: Pick<Group, 'slug' | 'member_count'>) {
+function isElegantSistersGroup(group: Pick<Group, 'slug' | 'name'>) {
   return group.slug === elegantSistersGroupSlug
+    || group.slug.includes('elegant-sisters')
+    || group.name.toLowerCase().includes('elegant sisters')
+}
+
+function getGroupMemberCapacity(group: Pick<Group, 'slug' | 'name' | 'member_count'>) {
+  return isElegantSistersGroup(group)
     ? Math.max(group.member_count, elegantSistersMemberCapacity)
     : group.member_count
 }
@@ -429,7 +435,7 @@ function GroupPage() {
   if (loading) return <main className="page-main loading-state"><LoaderCircle className="spin" size={22} /> Opening this group…</main>
   if (error && errorSlug === groupSlug) return <main className="page-main"><div className="inline-error" role="alert">{error}</div></main>
   if (!group) return <NotFoundPage />
-  const isElegantTree = group.slug === elegantSistersGroupSlug
+  const isElegantTree = isElegantSistersGroup(group)
 
   return (
     <main>
@@ -984,7 +990,7 @@ function TreeExport({ group, members, photos, onClose }: { group: Group; members
   const [previewScale, setPreviewScale] = useState(1)
   const [captureLayout, setCaptureLayout] = useState(false)
   const [error, setError] = useState('')
-  const isElegantTree = group.slug === elegantSistersGroupSlug
+  const isElegantTree = isElegantSistersGroup(group)
   const posterWidth = isElegantTree ? elegantTreePosterWidth : treePosterWidth
   const posterHeight = isElegantTree ? elegantTreePosterHeight : treePosterHeight
 
@@ -1118,7 +1124,7 @@ function TreeExport({ group, members, photos, onClose }: { group: Group; members
     members.length <= 5 ? 'is-sparse' : '',
   ].filter(Boolean).join(' ')
   const exportTiers = buildMemberTreeTiers(members, getGroupMemberCapacity(group))
-    .filter((tier) => tier.centerLabel || tier.members.some((slot) => slot.member !== null))
+    .filter((tier) => isElegantTree || tier.centerLabel || tier.members.some((slot) => slot.member !== null))
 
   return (
     <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget && !working) onClose() }} role="presentation">

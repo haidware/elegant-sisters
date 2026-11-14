@@ -368,8 +368,8 @@
 .tree-poster.is-elegant-sisters .poster-tier > .poster-member::before { display: none; }
 .tree-poster.is-elegant-sisters .poster-portrait { width: 52px; height: 52px; padding: 3px; margin-bottom: 2px; border: 3px double #dc9d25; box-shadow: 0 0 0 2px #193c26, 0 0 0 4px rgba(238, 184, 45, .68), 0 3px 6px rgba(35, 44, 27, .2); }
 .tree-poster.is-elegant-sisters .poster-portrait > span { top: -6px; left: -6px; width: 18px; height: 18px; border: 2px solid #e8bb39; outline: 1px solid #14261a; font-size: 8px; }
-.tree-poster.is-elegant-sisters .poster-member > strong { box-sizing: border-box; width: 100%; padding: 1px 2px; border-radius: 6px; font-size: 7px; line-height: 1.05; }
-.tree-poster.is-elegant-sisters .poster-member > small { box-sizing: border-box; width: 100%; margin-top: 1px; padding: 1px 2px; border-radius: 6px; font-size: 6px; line-height: 1.05; }
+.tree-poster.is-elegant-sisters .poster-member > strong { box-sizing: border-box; width: 100%; padding: 1px 2px; border-radius: 6px; font-size: 6px; line-height: 1.05; overflow-wrap: anywhere; }
+.tree-poster.is-elegant-sisters .poster-member > small { box-sizing: border-box; width: 100%; margin-top: 1px; padding: 2px 3px; border-radius: 6px; font-size: 5px; line-height: 1.05; overflow-wrap: anywhere; }
 .tree-poster.is-elegant-sisters .poster-member.is-empty { opacity: .78; }
 .tree-poster.is-elegant-sisters .poster-member.is-empty .poster-portrait { border-style: dashed; background: rgba(255, 253, 247, .84); }
 .tree-poster.is-elegant-sisters .poster-group-sign { min-height: 64px; padding: 8px; border: 3px double #e7bd37; border-radius: 24px; outline: 1px solid #193c26; outline-offset: -7px; box-shadow: 0 0 0 3px rgba(201, 145, 38, .52); font-size: 12px; letter-spacing: .06em; }
