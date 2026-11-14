@@ -94,7 +94,7 @@
 .tree-roots { display: flex; justify-content: center; align-items: center; gap: 15px; width: 185px; margin: 29px auto 0; color: #83966d; }
 .tree-roots span { height: 1px; flex: 1; background: #d9d4c2; }
 .members-section.is-elegant-sisters { max-width: 1540px; padding-right: clamp(24px, 4vw, 70px); padding-left: clamp(24px, 4vw, 70px); }
-.tree-wrap.is-elegant-sisters { box-sizing: border-box; padding: 31px 36px 34px; border: 0; background: #fffaf0 url('/elegant-sisters-tree.svg') left center / max(100%, 720px) 100% local no-repeat; }
+.tree-wrap.is-elegant-sisters { box-sizing: border-box; padding: 31px 36px 34px; border: 0; background: #fffaf0 url('/elegant-sisters-tree.svg') left top / max(100%, 720px) 100% local no-repeat; }
 .tree-wrap.is-elegant-sisters > .tree-canopy { display: none; }
 .tree-wrap.is-elegant-sisters .member-tree { max-width: 100%; gap: 12px; }
 .tree-wrap.is-elegant-sisters .member-tree-tier { gap: 16px 4px; }
