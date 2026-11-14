@@ -1,6 +1,6 @@
 # Membergram
 
-Membergram is a multi-group family-tree and photo-catalogue website. Visitors choose a group, view its landing page and family tree, browse member photo and video catalogues, and scan personal QR codes. The sole administrator signs in with Railway-configured superuser credentials and can create groups and member profiles with a separate tree portrait, up to 10 catalogue photos, and one video.
+Membergram is a multi-group community directory and photo-catalogue website for clubs, families, schools, alumni, and other groups. Visitors choose a group, view its landing page and member tree, open member catalogues in a swipeable popup, and scan personal QR codes. The sole administrator signs in with Railway-configured superuser credentials and can create groups and member profiles with a separate tree portrait, up to 10 catalogue photos, and one video.
 
 ## Set up the app
 
@@ -14,11 +14,11 @@ The database schema enables row-level security and grants browser clients read a
 
 ## Member media
 
-The tree portrait is uploaded separately from the member's catalogue. Catalogue uploads support up to 10 images (50 MB each) and one video up to 3 minutes (50 MB). New members stay hidden until the selected media finishes uploading. Files are stored as their original bytes; images are not resized, cropped, filtered, or recompressed. The Supabase bucket limit is 50 MB per file and is configured in `supabase/schema.sql`; the Supabase project must allow that limit. The tree and catalogue use `object-fit: contain` so the full image remains visible, and catalogue media can be expanded for viewing.
+The tree portrait is uploaded separately from the member's catalogue. Catalogue uploads support up to 10 images (50 MB each) and one video up to 3 minutes (50 MB). New members stay hidden until the selected media finishes uploading. Files are stored as their original bytes; images are not resized, cropped, filtered, or recompressed. The Supabase bucket limit is 50 MB per file and is configured in `supabase/schema.sql`; the Supabase project must allow that limit. The tree and catalogue use `object-fit: contain` so the full image remains visible. Selecting a member on the group tree opens their catalogue without leaving the page; the horizontal catalogue and expanded viewer support touch swipes, with keyboard and navigation controls for larger screens. Existing direct member URLs remain available for QR codes.
 
-The public family tree, preview poster, and downloadable poster follow the reference tree's ranked tiers around the group's name. The New Era Elegant Sisters group uses a full-width 35-position leafy tree with connected branches, portrait-fruit medallions, a central group badge, numbered camera placeholders, and readable green/gold name and role plaques. Planned rank positions remain fixed as members are added. On smaller screens the portrait tree grows vertically so member labels remain legible. A member's separate portrait upload is used for this tree layout.
+The public member tree, preview poster, and downloadable poster follow the reference tree's ranked tiers around the group's name. New Era Elegant Sisters International uses a full-width 35-position leafy tree with connected branches, portrait-fruit medallions, a central group badge, numbered camera placeholders, and readable green/gold name and role plaques. Planned rank positions remain fixed as members are added. On smaller screens the portrait tree grows vertically so member labels remain legible. A member's separate portrait upload is used for this tree layout.
 
-The selected group's family-tree export makes a PNG or an A3 landscape PDF with a personal QR code beneath each member. Each QR code points to `/<group-slug>/<member-slug>` on the current site origin, so the public website must be deployed to a URL before printed codes can be scanned by others. Group slugs `admin`, `assets`, and `groups` are reserved.
+The selected group's tree export makes a PNG or an A3 landscape PDF with a personal QR code beneath each member. Each QR code points to `/<group-slug>/<member-slug>` on the current site origin, so the public website must be deployed to a URL before printed codes can be scanned by others. Group slugs `admin`, `assets`, and `groups` are reserved.
 
 ## Group size and tree ranks
 
@@ -26,7 +26,7 @@ When creating a group, enter its planned number of members. For existing groups,
 
 ## Group links and QR codes
 
-Each group's public page is available at `/<group-slug>`. The admin dashboard lists each group's full URL and generates a downloadable QR code for that URL; scanning it opens the group's tree and uploaded member catalogues. Links and QR codes use the current site origin, so production codes should be downloaded from the deployed site.
+Each group's public page is available at `/<group-slug>`. The admin dashboard lists each group's full URL and generates a downloadable QR code for that URL; scanning it opens the group's tree and member catalogues. Links and QR codes use the current site origin, so production codes should be downloaded from the deployed site.
 
 ## Commands
 

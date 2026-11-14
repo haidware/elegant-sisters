@@ -16,7 +16,7 @@ create table if not exists public.members (
   group_id uuid not null references public.groups (id) on delete cascade,
   full_name text not null,
   slug text not null,
-  role_title text not null default 'Sister',
+  role_title text not null default 'Member',
   bio text,
   portrait_url text,
   portrait_storage_path text,
@@ -27,6 +27,8 @@ create table if not exists public.members (
   updated_at timestamptz not null default now(),
   unique (group_id, slug)
 );
+
+alter table public.members alter column role_title set default 'Member';
 
 alter table public.groups add column if not exists member_count integer;
 update public.groups g

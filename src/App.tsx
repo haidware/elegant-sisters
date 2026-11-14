@@ -146,7 +146,7 @@ function SiteHeader() {
     <header className="site-header">
       <Link aria-label="Membergram groups" className="brand-lockup" to="/groups">
         <span className="brand-mark"><Leaf size={19} strokeWidth={1.6} /></span>
-        <span className="brand-name">Membergram<span>Stories &amp; sisterhood</span></span>
+        <span className="brand-name">Membergram<span>Stories &amp; community</span></span>
       </Link>
       <button
         aria-expanded={menuOpen}
@@ -173,7 +173,7 @@ function SiteFooter() {
     <footer className="site-footer">
       <Link aria-label="Membergram groups" className="footer-mark" to="/groups"><Leaf size={15} /></Link>
       <p>Growing together, one story at a time.</p>
-      <span>Membergram · New Era Elegant Sisters International</span>
+      <span>Membergram · Communities and connections</span>
     </footer>
   )
 }
@@ -238,13 +238,13 @@ function GroupDirectoryPage() {
     <main>
       <section className="directory-hero">
         <div className="eyebrow"><span /> A LIVING RECORD OF BELONGING <span /></div>
-        <h1>Find your <em>sisterhood.</em></h1>
+        <h1>Find your <em>community.</em></h1>
         <p>Choose a group to explore the people, stories and connections that make it special.</p>
         <div className="directory-flourish"><Leaf size={18} /><span /><Leaf size={18} /></div>
       </section>
       <section className="group-directory" id="groups">
         <div className="directory-heading">
-          <div><div className="eyebrow eyebrow-dark">OUR COMMUNITIES</div><h2>One family, <em>many branches.</em></h2></div>
+          <div><div className="eyebrow eyebrow-dark">OUR COMMUNITIES</div><h2>One place, <em>many groups.</em></h2></div>
           <span className="member-count">{groups.length} {groups.length === 1 ? 'group' : 'groups'}</span>
         </div>
         {!supabase && <ConnectionNotice />}
@@ -258,16 +258,16 @@ function GroupDirectoryPage() {
         ) : (
           <div className="empty-tree">
             <div className="empty-icon"><Leaf size={29} /></div>
-            <h3>{supabase ? 'Our first branch is waiting.' : 'A family of purpose & grace.'}</h3>
-            <p>{supabase ? 'Sign in to the admin area to create the first group and begin its family tree.' : 'Connect Supabase to open your sisterhood’s group pages and photo catalogues.'}</p>
+            <h3>{supabase ? 'Your first group is ready to grow.' : 'Bring your community together.'}</h3>
+            <p>{supabase ? 'Sign in to create a group and start its member directory.' : 'Connect Supabase to open group pages and member catalogues.'}</p>
             <Link className="button button-gold" to="/"><LockKeyhole size={16} /> Open the admin area</Link>
           </div>
         )}
       </section>
       <section className="about-strip" id="about">
         <div className="about-icon"><Sparkles size={21} /></div>
-        <div><div className="eyebrow eyebrow-dark">ONE SISTERHOOD, MANY STORIES</div><h2>Every branch <em>belongs.</em></h2></div>
-        <p>Choose a community to meet its members, explore their photo catalogues and share the family tree.</p>
+        <div><div className="eyebrow eyebrow-dark">ONE PLATFORM, MANY COMMUNITIES</div><h2>Every member <em>belongs.</em></h2></div>
+        <p>Choose a group to meet its members, browse their photo catalogues, and explore its tree.</p>
       </section>
     </main>
   )
@@ -277,13 +277,13 @@ function GroupCard({ group, memberCount }: { group: Group; memberCount: number }
   return (
     <Link className="group-card" to={`/${group.slug}`}>
       <div className="group-card-art">
-        <span className="group-card-seal"><Leaf size={29} /><small>EST. IN<br />SISTERHOOD</small></span>
+        <span className="group-card-seal"><Leaf size={29} /><small>BUILT ON<br />CONNECTION</small></span>
         <span className="group-card-leaf leaf-one"><Leaf size={24} /></span>
         <span className="group-card-leaf leaf-two"><Leaf size={19} /></span>
         <span className="group-card-leaf leaf-three"><Leaf size={15} /></span>
       </div>
       <div className="group-card-copy">
-        <div className="group-card-meta"><span><span className="status-dot" /> SISTERHOOD</span><span>{memberCount} {memberCount === 1 ? 'member' : 'members'}</span></div>
+        <div className="group-card-meta"><span><span className="status-dot" /> COMMUNITY</span><span>{memberCount} {memberCount === 1 ? 'member' : 'members'}</span></div>
         <h3>{group.name}</h3>
         <p>{group.description || 'A community of purpose, connection and shared legacy.'}</p>
         <span className="group-card-link">Explore this group <ArrowUpRight size={16} /></span>
@@ -302,7 +302,12 @@ function GroupPage() {
   const [errorSlug, setErrorSlug] = useState('')
   const [search, setSearch] = useState('')
   const [exportOpen, setExportOpen] = useState(false)
+  const [selectedMemberId, setSelectedMemberId] = useState('')
+  const [cataloguePhotos, setCataloguePhotos] = useState<MemberPhoto[]>([])
+  const [catalogueLoadingId, setCatalogueLoadingId] = useState('')
+  const [catalogueError, setCatalogueError] = useState('')
   const loading = loadedSlug !== groupSlug
+  const selectedMember = loading ? null : members.find((member) => member.id === selectedMemberId) ?? null
 
   useEffect(() => {
     let active = true
@@ -368,12 +373,51 @@ function GroupPage() {
     return () => { active = false }
   }, [groupSlug])
 
+  useEffect(() => {
+    if (!selectedMemberId || !supabase) return
+
+    let active = true
+    const client = supabase
+    async function loadCatalogue() {
+      try {
+        const { data, error: photoError } = await client
+          .from('member_photos')
+          .select('id, member_id, image_url, storage_path, caption, sort_order, created_at, media_type, duration_seconds')
+          .eq('member_id', selectedMemberId)
+          .order('sort_order', { ascending: true })
+        if (!active) return
+        if (photoError) {
+          setCatalogueError(photoError.message)
+          setCataloguePhotos([])
+        } else {
+          setCataloguePhotos(data ?? [])
+        }
+      } catch (reason: unknown) {
+        if (active) {
+          setCataloguePhotos([])
+          setCatalogueError(getErrorMessage(reason))
+        }
+      } finally {
+        if (active) setCatalogueLoadingId((current) => current === selectedMemberId ? '' : current)
+      }
+    }
+    void loadCatalogue()
+    return () => { active = false }
+  }, [selectedMemberId])
+
+  function openCatalogue(memberId: string) {
+    setSelectedMemberId(memberId)
+    setCataloguePhotos([])
+    setCatalogueError('')
+    setCatalogueLoadingId(memberId)
+  }
+
   const filteredMembers = members.filter((member) =>
     `${member.full_name} ${member.role_title}`.toLowerCase().includes(search.trim().toLowerCase()),
   )
 
   if (!supabase) return <main className="page-main"><ConnectionNotice /><Link className="back-link" to="/"><ArrowLeft size={15} /> Back to groups</Link></main>
-  if (loading) return <main className="page-main loading-state"><LoaderCircle className="spin" size={22} /> Opening this sisterhood…</main>
+  if (loading) return <main className="page-main loading-state"><LoaderCircle className="spin" size={22} /> Opening this group…</main>
   if (error && errorSlug === groupSlug) return <main className="page-main"><div className="inline-error" role="alert">{error}</div></main>
   if (!group) return <NotFoundPage />
 
@@ -383,10 +427,10 @@ function GroupPage() {
         <div className="hero-copy">
           <div className="eyebrow"><span /> A LIVING RECORD OF BELONGING</div>
           <h1>Every member.<br /><em>One shared legacy.</em></h1>
-          <p>Explore the people, stories and connections that make {group.name} special. Discover the family tree, meet each member and browse their personal photo collections.</p>
+          <p>Explore the people, stories and connections that make {group.name} special. Browse member profiles, photo catalogues, and the group tree.</p>
           <div className="group-hero-actions">
-            <a className="button button-gold" href="#sisterhood">Explore members <ArrowUpRight size={16} /></a>
-            <button className="button button-white" disabled={!members.length} onClick={() => setExportOpen(true)} type="button"><Download size={15} /> Download family tree</button>
+            <a className="button button-gold" href="#members">Explore members <ArrowUpRight size={16} /></a>
+            <button className="button button-white" disabled={!members.length} onClick={() => setExportOpen(true)} type="button"><Download size={15} /> Download group tree</button>
           </div>
           <div className="group-stats">
             <div><strong>{members.length}</strong><span>Listed members</span></div>
@@ -394,15 +438,15 @@ function GroupPage() {
             <div><strong>∞</strong><span>Stories to preserve</span></div>
           </div>
         </div>
-        <GroupPosterPreview group={group} members={members} photos={legacyPhotos} />
+        <GroupPosterPreview group={group} members={members} photos={legacyPhotos} onSelectMember={openCatalogue} />
       </section>
 
-      <section className="sisterhood-section" id="sisterhood">
+      <section className="members-section" id="members">
         <div className="section-heading">
           <div>
-            <div className="eyebrow eyebrow-dark"><span /> {group.name.toUpperCase()} FAMILY TREE</div>
+            <div className="eyebrow eyebrow-dark"><span /> {group.name.toUpperCase()} MEMBER TREE</div>
             <h2>Meet the <em>members.</em></h2>
-            <p>Every branch has a story. Discover the women who bring this community to life.</p>
+            <p>Discover the people who make this community what it is.</p>
           </div>
           <div className="tree-actions">
             <label className="search-field">
@@ -410,7 +454,7 @@ function GroupPage() {
               <input
                 aria-label="Search members"
                 onChange={(event) => setSearch(event.target.value)}
-                placeholder="Find a sister"
+                placeholder="Find a member"
                 value={search}
               />
             </label>
@@ -427,7 +471,7 @@ function GroupPage() {
 
         {!supabase && <ConnectionNotice />}
         {loading ? (
-          <div className="loading-state"><LoaderCircle className="spin" size={22} /> Growing this family tree…</div>
+          <div className="loading-state"><LoaderCircle className="spin" size={22} /> Growing this member tree…</div>
         ) : filteredMembers.length || (!search.trim() && group.member_count > 0) ? (
           <div className={group.slug === elegantSistersGroupSlug ? 'tree-wrap is-elegant-sisters' : 'tree-wrap'}>
             <div className="tree-canopy" aria-hidden="true" />
@@ -442,10 +486,10 @@ function GroupPage() {
                   )}
                   {tier.members.map(({ member, rank }, index) => member ? (
                     <MemberTreeCard
-                      groupSlug={group.slug}
                       key={member.id}
                       member={member}
                       number={rank}
+                      onSelectMember={openCatalogue}
                       photo={member.portrait_url || legacyPhotos[member.id] || ''}
                       style={{ gridColumn: getTreeTierColumn(index, tier.members.length, tier.centerLabel) }}
                     />
@@ -471,35 +515,47 @@ function GroupPage() {
         <div className="about-icon"><Sparkles size={21} /></div>
         <div>
           <div className="eyebrow eyebrow-dark">ONE COMMUNITY, MANY STORIES</div>
-          <h2>Celebrating every <em>branch.</em></h2>
+          <h2>Celebrating every <em>member.</em></h2>
         </div>
-        <p>Choose a member to explore their photo catalogue and share their story with the family.</p>
+        <p>Select any member to open their swipeable photo and video catalogue.</p>
       </section>
 
+      {selectedMember && (
+        <MemberCatalogueDialog
+          catalogueError={catalogueError}
+          group={group}
+          loading={catalogueLoadingId === selectedMemberId}
+          member={selectedMember}
+          onClose={() => setSelectedMemberId('')}
+          photos={cataloguePhotos}
+        />
+      )}
       {exportOpen && <TreeExport group={group} members={members} photos={legacyPhotos} onClose={() => setExportOpen(false)} />}
     </main>
   )
 }
 
-function GroupPosterPreview({ group, members, photos }: { group: Group; members: Member[]; photos: Record<string, string> }) {
+function GroupPosterPreview({ group, members, photos, onSelectMember }: { group: Group; members: Member[]; photos: Record<string, string>; onSelectMember: (memberId: string) => void }) {
   const tiers = buildMemberTreeTiers(members, group.member_count)
   return (
-    <div aria-label={`${group.name} family tree preview`} className={group.slug === elegantSistersGroupSlug ? 'group-poster-wrap is-elegant-sisters' : 'group-poster-wrap'}>
+    <div aria-label={`${group.name} member tree preview`} className={group.slug === elegantSistersGroupSlug ? 'group-poster-wrap is-elegant-sisters' : 'group-poster-wrap'}>
       <div className={group.slug === elegantSistersGroupSlug ? 'group-poster is-elegant-sisters' : 'group-poster'}>
         <div className={group.slug === elegantSistersGroupSlug ? 'group-poster-border is-elegant-sisters' : 'group-poster-border'}>
-          <div className="group-poster-heading"><span>✦ &nbsp; ✦ &nbsp; ✦</span><small>{group.name.toUpperCase()}</small><b>OUR FAMILY TREE</b></div>
+          <div className="group-poster-heading"><span>✦ &nbsp; ✦ &nbsp; ✦</span><small>{group.name.toUpperCase()}</small><b>MEMBER TREE</b></div>
           {members.length || group.member_count > 0 ? (
             <div className="group-poster-members">
               {tiers.map((tier, tierIndex) => (
                 <div className="group-poster-tier" key={tierIndex}>
                   {tier.centerLabel && <div className="group-poster-center" style={{ gridColumn: '3 / 6' }}>{group.name}</div>}
                   {tier.members.map(({ member, rank }, index) => member ? (
-                    <Link
+                    <button
                       aria-label={`View ${member.full_name}'s catalogue`}
+                      aria-haspopup="dialog"
                       className="group-poster-member"
                       key={member.id}
+                      onClick={() => onSelectMember(member.id)}
                       style={{ gridColumn: getTreeTierColumn(index, tier.members.length, tier.centerLabel) }}
-                      to={`/${group.slug}/${member.slug}`}
+                      type="button"
                     >
                       <span className="group-poster-avatar">
                         {member.portrait_url || photos[member.id] ? <img alt="" crossOrigin="anonymous" src={member.portrait_url || photos[member.id]} /> : <Camera size={17} />}
@@ -507,7 +563,7 @@ function GroupPosterPreview({ group, members, photos }: { group: Group; members:
                       </span>
                       <strong>{member.full_name}</strong>
                       <small>{member.role_title || 'Member'}</small>
-                    </Link>
+                    </button>
                   ) : (
                     <div aria-label={`Available member position ${rank}`} className="group-poster-member is-empty" key={`slot-${rank}`} style={{ gridColumn: getTreeTierColumn(index, tier.members.length, tier.centerLabel) }}>
                       <span className="group-poster-avatar"><Camera size={17} /><i>{rank}</i></span>
@@ -519,10 +575,10 @@ function GroupPosterPreview({ group, members, photos }: { group: Group; members:
           ) : (
             <div className="group-poster-empty"><span><Leaf size={28} /></span><b>Your members will grow here.</b><small>Add the first member in the admin studio.</small></div>
           )}
-          <div className="group-poster-footer"><span />ROOTED IN SISTERHOOD · GROWING TOGETHER<span /></div>
+          <div className="group-poster-footer"><span />ROOTED IN COMMUNITY · GROWING TOGETHER<span /></div>
         </div>
       </div>
-      <span className="poster-caption"><QrCode size={13} /> A living family tree · {members.length} {members.length === 1 ? 'member' : 'members'}</span>
+      <span className="poster-caption"><QrCode size={13} /> A living member tree · {members.length} {members.length === 1 ? 'member' : 'members'}</span>
     </div>
   )
 }
@@ -573,11 +629,11 @@ function getTreeTierColumn(index: number, memberCount: number, centerLabel: bool
   return columnsByCount[memberCount]?.[index] ?? index + 1
 }
 
-function MemberTreeCard({ groupSlug, member, number, photo, style }: { groupSlug: string; member: Member; number: number; photo: string; style?: CSSProperties }) {
+function MemberTreeCard({ member, number, photo, onSelectMember, style }: { member: Member; number: number; photo: string; onSelectMember: (memberId: string) => void; style?: CSSProperties }) {
   const [photoError, setPhotoError] = useState(false)
 
   return (
-    <Link className="member-card" style={style} to={`/${groupSlug}/${member.slug}`}>
+    <button aria-haspopup="dialog" aria-label={`Open ${member.full_name}'s catalogue`} className="member-card" onClick={() => onSelectMember(member.id)} style={style} type="button">
       <span aria-hidden="true" className="fruit-vine"><i /><i /></span>
       <span className="member-number">{number}</span>
       <span className="portrait-frame">
@@ -588,9 +644,114 @@ function MemberTreeCard({ groupSlug, member, number, photo, style }: { groupSlug
         )}
       </span>
       <span className="member-name">{member.full_name}</span>
-      <span className="member-role">{member.role_title || 'Sister'}</span>
-      <span className="member-card-arrow"><ArrowUpRight size={13} /></span>
-    </Link>
+      <span className="member-role">{member.role_title || 'Member'}</span>
+    </button>
+  )
+}
+
+function MemberCatalogueDialog({ catalogueError, group, loading, member, onClose, photos }: {
+  catalogueError: string
+  group: Group
+  loading: boolean
+  member: Member
+  onClose: () => void
+  photos: MemberPhoto[]
+}) {
+  const galleryRef = useRef<HTMLDivElement>(null)
+  const closeButtonRef = useRef<HTMLButtonElement>(null)
+  const returnFocusRef = useRef<HTMLElement | null>(null)
+  const [activePhoto, setActivePhoto] = useState<MemberPhoto | null>(null)
+
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow
+    returnFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    document.body.style.overflow = 'hidden'
+    closeButtonRef.current?.focus()
+    return () => {
+      document.body.style.overflow = previousOverflow
+      returnFocusRef.current?.focus()
+    }
+  }, [])
+
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        event.stopPropagation()
+        if (activePhoto) setActivePhoto(null)
+        else onClose()
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [activePhoto, onClose])
+
+  function movePhoto(direction: number) {
+    const currentIndex = photos.findIndex((photo) => photo.id === activePhoto?.id)
+    if (currentIndex < 0 || !photos.length) return
+    setActivePhoto(photos[(currentIndex + direction + photos.length) % photos.length])
+  }
+
+  function scrollGallery(direction: number) {
+    const gallery = galleryRef.current
+    if (gallery) gallery.scrollBy({ left: direction * Math.max(gallery.clientWidth * 0.8, 280), behavior: 'smooth' })
+  }
+
+  return (
+    <div className="catalogue-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget && !activePhoto) onClose() }} role="presentation">
+      <section aria-labelledby="catalogue-title" aria-modal="true" className="catalogue-modal" role="dialog">
+        <header className="catalogue-modal-header">
+          <div className="catalogue-member-summary">
+            <div className="catalogue-member-avatar">
+              {member.portrait_url || photos.find((photo) => photo.media_type === 'image')?.image_url
+                ? <img alt="" crossOrigin="anonymous" src={member.portrait_url || photos.find((photo) => photo.media_type === 'image')?.image_url} />
+                : <Camera size={24} />}
+            </div>
+            <div>
+              <div className="eyebrow eyebrow-dark">{group.name}</div>
+              <h2 id="catalogue-title">{member.full_name}</h2>
+              <p>{member.role_title || 'Member'}{member.bio ? ` · ${member.bio}` : ''}</p>
+            </div>
+          </div>
+          <button aria-label="Close member catalogue" className="icon-button" onClick={onClose} ref={closeButtonRef} type="button"><X size={20} /></button>
+        </header>
+        <div className="catalogue-modal-content">
+          <div className="catalogue-modal-toolbar">
+            <div><div className="eyebrow eyebrow-dark">MEMBER CATALOGUE</div><h3>Photos &amp; <em>videos</em></h3></div>
+            {!!photos.length && <div className="catalogue-carousel-controls">
+              <button aria-label="Scroll catalogue left" className="icon-button" disabled={loading} onClick={() => scrollGallery(-1)} type="button"><ChevronLeft size={18} /></button>
+              <button aria-label="Scroll catalogue right" className="icon-button" disabled={loading} onClick={() => scrollGallery(1)} type="button"><ChevronRight size={18} /></button>
+            </div>}
+          </div>
+          {catalogueError && <div className="inline-error" role="alert">Could not load this catalogue: {catalogueError}</div>}
+          {loading ? (
+            <div className="catalogue-loading"><LoaderCircle className="spin" size={20} /> Loading catalogue…</div>
+          ) : photos.length ? (
+            <div aria-label={`${member.full_name}'s swipeable photo and video catalogue`} className="photo-gallery catalogue-modal-gallery" ref={galleryRef} role="region" tabIndex={0}>
+              {photos.map((photo) => (
+                <button aria-label={`Expand ${photo.media_type === 'video' ? 'video' : 'photo'}${photo.caption ? `: ${photo.caption}` : ''}`} className="catalogue-photo" key={photo.id} onClick={() => setActivePhoto(photo)} type="button">
+                  {photo.media_type === 'video'
+                    ? <><video aria-label={`Video of ${member.full_name}`} preload="metadata" src={photo.image_url} /><span className="catalogue-play"><Play size={20} fill="currentColor" /></span></>
+                    : <img alt={photo.caption || `Photo of ${member.full_name}`} crossOrigin="anonymous" loading="lazy" src={photo.image_url} />}
+                  {photo.caption && <span>{photo.caption}</span>}
+                </button>
+              ))}
+            </div>
+          ) : catalogueError ? null : (
+            <div className="gallery-empty"><ImagePlus size={23} /><p>No catalogue media has been added yet.</p></div>
+          )}
+        </div>
+        {activePhoto && (
+          <PhotoLightbox
+            onClose={() => setActivePhoto(null)}
+            onNext={() => movePhoto(1)}
+            onPrevious={() => movePhoto(-1)}
+            photo={activePhoto}
+            position={photos.findIndex((photo) => photo.id === activePhoto.id) + 1}
+            total={photos.length}
+          />
+        )}
+      </section>
+    </div>
   )
 }
 
@@ -695,14 +856,14 @@ function MemberPage() {
             : <Camera size={32} />}
         </div>
         <h1>{member.full_name}</h1>
-        <p className="profile-role">{member.role_title || 'Sister'}</p>
+        <p className="profile-role">{member.role_title || 'Member'}</p>
         {member.bio && <p className="profile-bio">{member.bio}</p>}
         <div className="profile-meta"><span><Camera size={14} /> {member.photos.filter((photo) => photo.media_type === 'image').length} {member.photos.filter((photo) => photo.media_type === 'image').length === 1 ? 'photo' : 'photos'}{member.photos.some((photo) => photo.media_type === 'video') ? ' and 1 video' : ''} in their catalogue</span></div>
       </section>
 
       <section className="catalogue-section">
         <div className="catalogue-heading">
-          <div><div className="eyebrow eyebrow-dark">HER MOMENTS</div><h2>A catalogue of <em>memories.</em></h2></div>
+          <div><div className="eyebrow eyebrow-dark">MEMBER CATALOGUE</div><h2>A catalogue of <em>memories.</em></h2></div>
         </div>
         {member.photos.length ? (
           <div aria-label={`${member.full_name}'s photo and video catalogue`} className="photo-gallery" role="region" tabIndex={0}>
@@ -882,7 +1043,7 @@ function TreeExport({ group, members, photos, onClose }: { group: Group; members
         })
       }))
       const canvas = await html2canvas(posterRef.current, { backgroundColor: '#fffaf0', scale: 2, useCORS: true, logging: false })
-      const fileName = `${group.slug}-family-tree`
+      const fileName = `${group.slug}-group-tree`
       if (kind === 'png') {
         const anchor = document.createElement('a')
         anchor.download = `${fileName}.png`
@@ -917,7 +1078,7 @@ function TreeExport({ group, members, photos, onClose }: { group: Group; members
     <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget && !working) onClose() }} role="presentation">
       <section aria-labelledby="export-title" aria-modal="true" className="export-modal" role="dialog">
         <div className="modal-heading">
-          <div><div className="eyebrow eyebrow-dark">SHARE YOUR SISTERHOOD</div><h2 id="export-title">The family tree, <em>to go.</em></h2><p>Each member's portrait and QR code links to their photo catalogue.</p></div>
+          <div><div className="eyebrow eyebrow-dark">SHARE YOUR GROUP</div><h2 id="export-title">The member tree, <em>to go.</em></h2><p>Each member's portrait and QR code links to their photo catalogue.</p></div>
           <button aria-label="Close export" className="icon-button" disabled={working} onClick={onClose} type="button"><X size={20} /></button>
         </div>
         {error && <div className="inline-error" role="alert">{error}</div>}
@@ -926,9 +1087,9 @@ function TreeExport({ group, members, photos, onClose }: { group: Group; members
             <div className="poster-title">
               <span className="poster-flourish">✦ &nbsp; ✦ &nbsp; ✦</span>
               <p>{group.name}</p>
-              <h3>FAMILY<br />TREE</h3>
+              <h3>MEMBER<br />TREE</h3>
               <span className="poster-rule" />
-              <small>ROOTED IN SISTERHOOD · GROWING TOGETHER</small>
+              <small>ROOTED IN COMMUNITY · GROWING TOGETHER</small>
             </div>
             <div className="poster-members">
               {buildMemberTreeTiers(members, group.member_count).map((tier, tierIndex) => (
@@ -941,9 +1102,9 @@ function TreeExport({ group, members, photos, onClose }: { group: Group; members
                         <span>{rank}</span>
                       </div>
                       <strong>{member.full_name}</strong>
-                      <small>{member.role_title || 'Sister'}</small>
+                      <small>{member.role_title || 'Member'}</small>
                       {qrCodes[member.id] ? <img alt={`Scan to view ${member.full_name}'s catalogue`} className="poster-qr" src={qrCodes[member.id]} /> : <span className="poster-qr-placeholder" />}
-                      <span className="poster-scan">SCAN HER STORY</span>
+                      <span className="poster-scan">SCAN THEIR STORY</span>
                     </div>
                   ) : (
                     <div aria-label={`Available member position ${rank}`} className="poster-member is-empty" key={`slot-${rank}`} style={{ gridColumn: getTreeTierColumn(index, tier.members.length, tier.centerLabel) }}>
@@ -953,7 +1114,7 @@ function TreeExport({ group, members, photos, onClose }: { group: Group; members
                 </div>
               ))}
             </div>
-            <div className="poster-footer">A SISTERHOOD OF PURPOSE, LOVE &amp; LEGACY</div>
+            <div className="poster-footer">A COMMUNITY OF STORIES &amp; CONNECTIONS</div>
           </div>
         </div>
         <div className="export-actions">
@@ -1039,14 +1200,14 @@ function AdminLogin({ error, onError, onSignedIn }: { error: string; onError: (m
         <div className="login-mark"><ShieldCheck size={22} /></div>
         <div className="eyebrow eyebrow-dark">PRIVATE MEMBER SPACE</div>
         <h1>Welcome <em>back.</em></h1>
-        <p>Sign in to care for your sisterhood's family tree.</p>
+        <p>Sign in to manage your groups and member catalogues.</p>
         {error && <div className="inline-error" role="alert">{error}</div>}
         <form className="login-form" onSubmit={(event) => void signIn(event)}>
           <label>Superuser username<input autoComplete="username" onChange={(event) => setUsername(event.target.value)} required type="text" value={username} /></label>
           <label>Password<input autoComplete="current-password" onChange={(event) => setPassword(event.target.value)} required type="password" value={password} /></label>
           <button className="button button-gold button-full" disabled={working} type="submit">{working ? <LoaderCircle className="spin" size={16} /> : <LockKeyhole size={16} />} Sign in to admin</button>
         </form>
-        <Link className="back-link login-back" to="/groups"><ArrowLeft size={15} /> Browse sisterhoods</Link>
+        <Link className="back-link login-back" to="/groups"><ArrowLeft size={15} /> Browse groups</Link>
       </div>
     </main>
   )
@@ -1474,9 +1635,9 @@ function AdminDashboard({ onSignOut }: { onSignOut: () => void }) {
         )}
         <div className="admin-grid">
           <section className="admin-card">
-            <div className="admin-card-title"><span className="admin-step">01</span><div><h2>Create a group</h2><p>Give each community its own landing page and family tree.</p></div></div>
+            <div className="admin-card-title"><span className="admin-step">01</span><div><h2>Create a group</h2><p>Give each community its own landing page and member tree.</p></div></div>
             <form className="admin-form" onSubmit={(event) => void createGroup(event)}>
-              <label>Group name<input onChange={(event) => setGroupName(event.target.value)} placeholder="e.g. New Era Elegant Sisters" required value={groupName} /></label>
+              <label>Group name<input onChange={(event) => setGroupName(event.target.value)} placeholder="e.g. Northside Alumni Network" required value={groupName} /></label>
               <label>Number of members<input min="1" onChange={(event) => setGroupMemberCount(event.target.value)} placeholder="e.g. 25" required step="1" type="number" value={groupMemberCount} /></label>
               <label>Introduction <span className="optional-label">Optional</span><textarea onChange={(event) => setGroupDescription(event.target.value)} placeholder="A short introduction to this community…" rows={3} value={groupDescription} /></label>
               <button className="button button-gold button-full" disabled={working || Boolean(pendingMemberId)} type="submit">{working ? <LoaderCircle className="spin" size={16} /> : <Plus size={16} />} Create group page</button>
@@ -1521,10 +1682,10 @@ function AdminDashboard({ onSignOut }: { onSignOut: () => void }) {
 
         <section aria-labelledby="group-links-title" className="group-links-admin">
           <div className="members-admin-heading">
-            <div><div className="eyebrow eyebrow-dark">GROUP PAGES</div><h2 id="group-links-title">Share each <em>sisterhood.</em></h2></div>
+            <div><div className="eyebrow eyebrow-dark">GROUP PAGES</div><h2 id="group-links-title">Share each <em>community.</em></h2></div>
             <span className="member-count">{groups.length} {groups.length === 1 ? 'link' : 'links'}</span>
           </div>
-          <p className="group-links-intro">Each link opens its group's family tree and member catalogues. Scan or download its QR code to share the page.</p>
+          <p className="group-links-intro">Each link opens its group's member tree and catalogues. Scan or download its QR code to share the page.</p>
           {groups.length ? (
             <div className="group-share-list">{groups.map((group) => <AdminGroupShare key={group.id} group={group} />)}</div>
           ) : <p className="admin-no-members">Create a group to generate its public link and QR code.</p>}
@@ -1542,7 +1703,7 @@ function AdminDashboard({ onSignOut }: { onSignOut: () => void }) {
                 <Link aria-label={`View ${member.full_name}'s catalogue`} className="icon-button" to={`/${selectedGroup?.slug}/${member.slug}`}><ArrowUpRight size={17} /></Link>
               </div>
             ))}</div>
-          ) : selectedGroup ? <p className="admin-no-members">Your first member profile will appear in this group.</p> : <p className="admin-no-members">Create a group to begin building its family tree.</p>}
+          ) : selectedGroup ? <p className="admin-no-members">Your first member profile will appear in this group.</p> : <p className="admin-no-members">Create a group to begin building its member tree.</p>}
         </section>
       </div>
     </main>

@@ -300,7 +300,7 @@ async function handleAdminRequest(request, response, url) {
       group_id: groupId,
       full_name: fullName,
       slug,
-      role_title: typeof body.role_title === 'string' ? body.role_title.trim() || 'Sister' : 'Sister',
+      role_title: typeof body.role_title === 'string' ? body.role_title.trim() || 'Member' : 'Member',
       bio: typeof body.bio === 'string' ? body.bio.trim() || null : null,
       sort_order: treeRank - 1,
       published: false,
