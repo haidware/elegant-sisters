@@ -349,7 +349,7 @@
 .modal-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; padding-bottom: 18px; }
 .modal-heading h2 { margin: 7px 0 4px; font-size: 30px; }
 .modal-heading p { color: var(--muted); font-size: 10px; }
-.poster-preview-scroll { flex: 1; min-height: 0; overflow: auto; border: 1px solid #e7dfd0; background: #ede8dc; }
+.poster-preview-scroll { box-sizing: border-box; flex: 1; width: 100%; min-width: 0; min-height: 0; overflow: auto; border: 1px solid #e7dfd0; background: #ede8dc; }
 .poster-preview-canvas { position: relative; margin: 0 auto; }
 .tree-poster { position: absolute; top: 0; left: 0; box-sizing: border-box; width: 1400px; height: 990px; min-height: 0; margin: 0; padding: 26px 30px 21px; overflow: hidden; transform-origin: top left; color: var(--forest); background: radial-gradient(ellipse 70px 26px at 2% 10%, rgba(76, 125, 53, .15) 0 68%, transparent 74%), radial-gradient(ellipse 60px 23px at 3% 34%, rgba(92, 145, 63, .13) 0 68%, transparent 74%), radial-gradient(ellipse 70px 26px at 98% 13%, rgba(76, 125, 53, .15) 0 68%, transparent 74%), radial-gradient(ellipse 60px 23px at 97% 42%, rgba(92, 145, 63, .13) 0 68%, transparent 74%), #fffaf0; border: 12px double #c49a48; }
 .tree-poster.is-elegant-sisters { padding: 34px 40px 30px; display: flex; flex-direction: column; border: 0; background: #fffaf0 url('/elegant-sisters-tree.svg?v=2') center / 100% 100% no-repeat; }
