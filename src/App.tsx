@@ -379,7 +379,7 @@ function GroupPage() {
 
   return (
     <main>
-      <section className="group-hero">
+      <section className={group.slug === elegantSistersGroupSlug ? 'group-hero is-elegant-sisters' : 'group-hero'}>
         <div className="hero-copy">
           <div className="eyebrow"><span /> A LIVING RECORD OF BELONGING</div>
           <h1>Every member.<br /><em>One shared legacy.</em></h1>
@@ -578,6 +578,7 @@ function MemberTreeCard({ groupSlug, member, number, photo, style }: { groupSlug
 
   return (
     <Link className="member-card" style={style} to={`/${groupSlug}/${member.slug}`}>
+      <span aria-hidden="true" className="fruit-vine"><i /><i /></span>
       <span className="member-number">{number}</span>
       <span className="portrait-frame">
         {photo && !photoError ? (
@@ -596,6 +597,7 @@ function MemberTreeCard({ groupSlug, member, number, photo, style }: { groupSlug
 function TreeMemberPlaceholder({ rank, style }: { rank: number; style?: CSSProperties }) {
   return (
     <div aria-label={`Available member position ${rank}`} className="member-card is-empty" style={style}>
+      <span aria-hidden="true" className="fruit-vine"><i /><i /></span>
       <span className="member-number">{rank}</span>
       <span className="portrait-frame"><span className="portrait-placeholder"><Camera size={24} strokeWidth={1.3} /></span></span>
       <span className="member-name-placeholder" />
