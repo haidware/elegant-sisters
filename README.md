@@ -18,7 +18,7 @@ The tree portrait is uploaded separately from the member's catalogue. Catalogue 
 
 The public member tree, preview poster, and downloadable poster follow the reference tree's ranked tiers around the group's name. New Era Elegant Sisters International uses a full-width 35-position leafy tree with connected branches, portrait-fruit medallions, a central group badge, numbered camera placeholders, and readable green/gold name and role plaques. Planned rank positions remain fixed as members are added. On smaller screens the portrait tree grows vertically so member labels remain legible. A member's separate portrait upload is used for this tree layout.
 
-The selected group's tree export makes a PNG or an A3 landscape PDF with a personal QR code beneath each member. Each QR code points to `/<group-slug>/<member-slug>` on the current site origin, so the public website must be deployed to a URL before printed codes can be scanned by others. Group slugs `admin`, `assets`, and `groups` are reserved.
+The selected group's tree export makes a shareable PNG or a single-page A3 landscape PDF without QR codes. The export keeps member portraits, names, titles, and tree branches together in a print-friendly layout. Group slugs `admin`, `assets`, and `groups` are reserved.
 
 ## Group size and tree ranks
 
