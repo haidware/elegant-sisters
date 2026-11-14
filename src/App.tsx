@@ -1056,8 +1056,7 @@ function TreeExport({ group, members, photos, onClose }: { group: Group; members
     members.length <= 5 ? 'is-sparse' : '',
   ].filter(Boolean).join(' ')
   const exportTiers = buildMemberTreeTiers(members, group.member_count)
-    .map((tier) => ({ ...tier, members: tier.members.filter((slot) => slot.member !== null) }))
-    .filter((tier) => tier.centerLabel || tier.members.length > 0)
+    .filter((tier) => tier.centerLabel || tier.members.some((slot) => slot.member !== null))
 
   return (
     <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget && !working) onClose() }} role="presentation">
