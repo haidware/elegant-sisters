@@ -438,10 +438,9 @@ function GroupPage() {
             <div><strong>∞</strong><span>Stories to preserve</span></div>
           </div>
         </div>
-        <GroupPosterPreview group={group} members={members} photos={legacyPhotos} onSelectMember={openCatalogue} />
       </section>
 
-      <section className="members-section" id="members">
+      <section className={group.slug === elegantSistersGroupSlug ? 'members-section is-elegant-sisters' : 'members-section'} id="members">
         <div className="section-heading">
           <div>
             <div className="eyebrow eyebrow-dark"><span /> {group.name.toUpperCase()} MEMBER TREE</div>
@@ -532,54 +531,6 @@ function GroupPage() {
       )}
       {exportOpen && <TreeExport group={group} members={members} photos={legacyPhotos} onClose={() => setExportOpen(false)} />}
     </main>
-  )
-}
-
-function GroupPosterPreview({ group, members, photos, onSelectMember }: { group: Group; members: Member[]; photos: Record<string, string>; onSelectMember: (memberId: string) => void }) {
-  const tiers = buildMemberTreeTiers(members, group.member_count)
-  return (
-    <div aria-label={`${group.name} member tree preview`} className={group.slug === elegantSistersGroupSlug ? 'group-poster-wrap is-elegant-sisters' : 'group-poster-wrap'}>
-      <div className={group.slug === elegantSistersGroupSlug ? 'group-poster is-elegant-sisters' : 'group-poster'}>
-        <div className={group.slug === elegantSistersGroupSlug ? 'group-poster-border is-elegant-sisters' : 'group-poster-border'}>
-          <div className="group-poster-heading"><span>✦ &nbsp; ✦ &nbsp; ✦</span><small>{group.name.toUpperCase()}</small><b>MEMBER TREE</b></div>
-          {members.length || group.member_count > 0 ? (
-            <div className="group-poster-members">
-              {tiers.map((tier, tierIndex) => (
-                <div className="group-poster-tier" key={tierIndex}>
-                  {tier.centerLabel && <div className="group-poster-center" style={{ gridColumn: '3 / 6' }}>{group.name}</div>}
-                  {tier.members.map(({ member, rank }, index) => member ? (
-                    <button
-                      aria-label={`View ${member.full_name}'s catalogue`}
-                      aria-haspopup="dialog"
-                      className="group-poster-member"
-                      key={member.id}
-                      onClick={() => onSelectMember(member.id)}
-                      style={{ gridColumn: getTreeTierColumn(index, tier.members.length, tier.centerLabel) }}
-                      type="button"
-                    >
-                      <span className="group-poster-avatar">
-                        {member.portrait_url || photos[member.id] ? <img alt="" crossOrigin="anonymous" src={member.portrait_url || photos[member.id]} /> : <Camera size={17} />}
-                        <i>{rank}</i>
-                      </span>
-                      <strong>{member.full_name}</strong>
-                      <small>{member.role_title || 'Member'}</small>
-                    </button>
-                  ) : (
-                    <div aria-label={`Available member position ${rank}`} className="group-poster-member is-empty" key={`slot-${rank}`} style={{ gridColumn: getTreeTierColumn(index, tier.members.length, tier.centerLabel) }}>
-                      <span className="group-poster-avatar"><Camera size={17} /><i>{rank}</i></span>
-                    </div>
-                  ))}
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="group-poster-empty"><span><Leaf size={28} /></span><b>Your members will grow here.</b><small>Add the first member in the admin studio.</small></div>
-          )}
-          <div className="group-poster-footer"><span />ROOTED IN COMMUNITY · GROWING TOGETHER<span /></div>
-        </div>
-      </div>
-      <span className="poster-caption"><QrCode size={13} /> A living member tree · {members.length} {members.length === 1 ? 'member' : 'members'}</span>
-    </div>
   )
 }
 
