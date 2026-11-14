@@ -451,10 +451,14 @@
   .tree-actions { width: 100%; }
   .search-field { flex: 1; min-width: 0; }
   .tree-actions > .button { padding: 0 10px; white-space: nowrap; }
-  .tree-wrap { padding: 20px 8px 15px; }
-  .tree-wrap { overflow-x: auto; }
-  .member-tree { min-width: 720px; }
-  .member-tree-tier { gap: 18px 5px; }
+  .tree-wrap { padding: 20px 8px 15px; overflow-x: hidden; }
+  .member-tree { width: 100%; min-width: 0; }
+  .member-tree-tier { display: flex; flex-wrap: wrap; justify-content: center; gap: 18px 8px; }
+  .member-tree-tier > .member-card, .member-tree-tier > .member-tree-placeholder { flex: 0 1 calc(50% - 8px); }
+  .tree-group-sign { flex: 0 1 260px; width: min(100%, 260px); margin: 0 auto; }
+  .tree-wrap.is-elegant-sisters { padding: 20px 12px 24px; background-size: 100% 100%; }
+  .tree-wrap.is-elegant-sisters .member-tree-tier { gap: 16px 8px; }
+  .tree-wrap.is-elegant-sisters .tree-group-sign { flex-basis: 260px; width: min(100%, 260px); }
   .member-card { padding-right: 1px; padding-left: 1px; }
   .portrait-frame { width: clamp(58px, 18vw, 77px); height: clamp(58px, 18vw, 77px); padding: 4px; }
   .member-number { left: calc(50% - 33px); top: -3px; width: 19px; height: 19px; font-size: 9px; }
@@ -528,7 +532,6 @@
 @media (max-width: 380px) {
   .tree-actions { align-items: stretch; flex-direction: column; }
   .tree-actions > .button { min-height: 36px; }
-  .member-tree { min-width: 720px; }
   .member-number { left: calc(50% - 33px); }
   .section-heading h2 { font-size: 29px; }
   .group-card { grid-template-columns: 31% 1fr; }
