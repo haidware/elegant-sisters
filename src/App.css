@@ -366,10 +366,11 @@
 .tree-poster.is-elegant-sisters .poster-tier::before,
 .tree-poster.is-elegant-sisters .poster-tier::after,
 .tree-poster.is-elegant-sisters .poster-tier > .poster-member::before { display: none; }
+.tree-poster.is-elegant-sisters .poster-tier > .poster-member:only-child { grid-column: 3 / 6 !important; }
 .tree-poster.is-elegant-sisters .poster-member { box-sizing: border-box; padding: 0 2px 3px; }
-.tree-poster.is-elegant-sisters .poster-portrait { width: 66px; height: 66px; padding: 3px; margin-bottom: 3px; border: 3px double #dc9d25; box-shadow: 0 0 0 2px #193c26, 0 0 0 4px rgba(238, 184, 45, .68), 0 3px 6px rgba(35, 44, 27, .2); }
+.tree-poster.is-elegant-sisters .poster-portrait { width: 58px; height: 58px; padding: 3px; margin-bottom: 3px; border: 3px double #dc9d25; box-shadow: 0 0 0 2px #193c26, 0 0 0 4px rgba(238, 184, 45, .68), 0 3px 6px rgba(35, 44, 27, .2); }
 .tree-poster.is-elegant-sisters .poster-portrait > span { top: -6px; left: -6px; width: 18px; height: 18px; border: 2px solid #e8bb39; outline: 1px solid #14261a; font-size: 8px; }
-.tree-poster.is-elegant-sisters .poster-member > strong { box-sizing: border-box; width: 100%; padding: 2px 3px; border-radius: 6px; font-size: 11px; line-height: 1.05; overflow-wrap: anywhere; }
+.tree-poster.is-elegant-sisters .poster-member > strong { box-sizing: border-box; width: 100%; max-width: 100%; max-height: 4.4em; min-height: 2.2em; padding: 2px 3px; display: flex; align-items: center; justify-content: center; overflow: hidden; border-radius: 6px; font-size: 8px; line-height: 1.1; text-align: center; overflow-wrap: anywhere; word-break: break-word; }
 .tree-poster.is-elegant-sisters .poster-member > small { display: none; }
 .tree-poster.is-elegant-sisters .poster-member.is-empty { opacity: .78; }
 .tree-poster.is-elegant-sisters .poster-member.is-empty .poster-portrait { border-style: dashed; background: rgba(255, 253, 247, .84); }
