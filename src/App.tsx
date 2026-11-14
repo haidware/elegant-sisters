@@ -1002,31 +1002,60 @@ function TreeExport({ group, members, photos, onClose }: { group: Group; members
           image.addEventListener('error', () => reject(new Error('A poster image could not be loaded. Check that the image is publicly accessible in Supabase Storage.')), { once: true })
         })
       }))
+      const isElegantTree = group.slug === elegantSistersGroupSlug
       const canvas = await html2canvas(posterRef.current, {
-        backgroundColor: '#fffaf0',
+        backgroundColor: isElegantTree ? null : '#fffaf0',
         height: treePosterHeight,
         scale: 3,
         useCORS: true,
         logging: false,
+        onclone: isElegantTree ? (clonedDocument) => {
+          const clonedPoster = clonedDocument.querySelector<HTMLElement>('.tree-poster.is-elegant-sisters')
+          if (clonedPoster) {
+            clonedPoster.style.background = 'transparent'
+            clonedPoster.querySelector('.poster-tree-artwork')?.remove()
+          }
+        } : undefined,
         width: treePosterWidth,
         windowHeight: treePosterHeight,
         windowWidth: treePosterWidth,
       })
+      let exportCanvas = canvas
+      if (isElegantTree) {
+        const artwork = posterRef.current.querySelector<HTMLImageElement>('.poster-tree-artwork')
+        if (!artwork || !artwork.naturalWidth) {
+          throw new Error('The tree artwork could not be loaded.')
+        }
+        const composite = document.createElement('canvas')
+        composite.width = canvas.width
+        composite.height = canvas.height
+        const context = composite.getContext('2d')
+        if (!context) {
+          throw new Error('Unable to prepare the tree poster image.')
+        }
+        context.fillStyle = '#fffaf0'
+        context.fillRect(0, 0, composite.width, composite.height)
+        context.globalAlpha = Number.parseFloat(window.getComputedStyle(artwork).opacity)
+        context.drawImage(artwork, 0, 0, composite.width, composite.height)
+        context.globalAlpha = 1
+        context.drawImage(canvas, 0, 0)
+        exportCanvas = composite
+      }
       const fileName = `${group.slug}-group-tree`
       if (kind === 'png') {
         const anchor = document.createElement('a')
         anchor.download = `${fileName}.png`
-        anchor.href = canvas.toDataURL('image/png')
+        anchor.href = exportCanvas.toDataURL('image/png')
         anchor.click()
       } else {
         const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a3' })
         const pageWidth = pdf.internal.pageSize.getWidth()
         const pageHeight = pdf.internal.pageSize.getHeight()
         const margin = 8
-        const scale = Math.min((pageWidth - margin * 2) / canvas.width, (pageHeight - margin * 2) / canvas.height)
-        const width = canvas.width * scale
-        const height = canvas.height * scale
-        pdf.addImage(canvas.toDataURL('image/png'), 'PNG', (pageWidth - width) / 2, (pageHeight - height) / 2, width, height)
+        const scale = Math.min((pageWidth - margin * 2) / exportCanvas.width, (pageHeight - margin * 2) / exportCanvas.height)
+        const width = exportCanvas.width * scale
+        const height = exportCanvas.height * scale
+        pdf.addImage(exportCanvas.toDataURL('image/png'), 'PNG', (pageWidth - width) / 2, (pageHeight - height) / 2, width, height)
         pdf.save(`${fileName}.pdf`)
       }
     } catch (reason) {
@@ -1076,6 +1105,9 @@ function TreeExport({ group, members, photos, onClose }: { group: Group; members
               ref={posterRef}
               style={{ transform: captureLayout ? 'none' : `scale(${previewScale})` }}
             >
+              {group.slug === elegantSistersGroupSlug && (
+                <img alt="" aria-hidden="true" className="poster-tree-artwork" crossOrigin="anonymous" src="/elegant-sisters-tree.svg?v=4" />
+              )}
               <div className="poster-title">
                 <span className="poster-flourish">✦ &nbsp; ✦ &nbsp; ✦</span>
                 <p>{group.name}</p>
