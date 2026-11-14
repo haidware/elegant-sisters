@@ -1050,6 +1050,11 @@ function TreeExport({ group, members, photos, onClose }: { group: Group; members
   }, [onClose, working])
 
   const ready = members.length > 0
+  const posterClassName = [
+    'tree-poster',
+    group.slug === elegantSistersGroupSlug ? 'is-elegant-sisters' : '',
+    members.length <= 5 ? 'is-sparse' : '',
+  ].filter(Boolean).join(' ')
   const exportTiers = buildMemberTreeTiers(members, group.member_count)
     .map((tier) => ({ ...tier, members: tier.members.filter((slot) => slot.member !== null) }))
     .filter((tier) => tier.centerLabel || tier.members.length > 0)
@@ -1068,7 +1073,7 @@ function TreeExport({ group, members, photos, onClose }: { group: Group; members
             width: treePosterWidth * (captureLayout ? 1 : previewScale),
           }}>
             <div
-              className={group.slug === elegantSistersGroupSlug ? 'tree-poster is-elegant-sisters' : 'tree-poster'}
+              className={posterClassName}
               ref={posterRef}
               style={{ transform: captureLayout ? 'none' : `scale(${previewScale})` }}
             >
@@ -1081,7 +1086,7 @@ function TreeExport({ group, members, photos, onClose }: { group: Group; members
               </div>
               <div className="poster-members">
                 {exportTiers.map((tier, tierIndex) => (
-                  <div className="poster-tier" key={tierIndex}>
+                  <div className={tier.centerLabel && !tier.members.length ? 'poster-tier is-sign-only' : 'poster-tier'} key={tierIndex}>
                     {tier.centerLabel && <div className="poster-group-sign" style={{ gridColumn: '3 / 6' }}>{group.name}</div>}
                     {tier.members.map(({ member, rank }, index) => member && (
                       <div className="poster-member" key={member.id} style={{ gridColumn: getTreeTierColumn(index, tier.members.length, tier.centerLabel) }}>
