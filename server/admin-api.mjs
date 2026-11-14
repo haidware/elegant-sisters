@@ -9,6 +9,8 @@ const maxVideoBytes = 50 * 1024 * 1024
 const maxCatalogueImages = 10
 const maxCatalogueVideos = 1
 const maxMediaPerRequest = maxCatalogueImages + maxCatalogueVideos
+const elegantSistersGroupSlug = 'new-era-elegant-sisters-international'
+const elegantSistersMemberCapacity = 36
 const loginAttempts = new Map()
 let cachedAdminClient
 let cachedAdminConfig
@@ -244,11 +246,14 @@ async function handleAdminRequest(request, response, url) {
     const memberCount = body.member_count
     if (!Number.isInteger(memberCount) || memberCount < 1) throw new ApiError(400, 'Enter a whole number of members greater than zero.')
     const { data: group, error: groupError } = await client.from('groups')
-      .select('id')
+      .select('id, slug')
       .eq('id', groupId)
       .maybeSingle()
     if (groupError) throw new ApiError(502, groupError.message)
     if (!group) throw new ApiError(404, 'The selected group was not found.')
+    if (group.slug === elegantSistersGroupSlug && memberCount < elegantSistersMemberCapacity) {
+      throw new ApiError(400, `The Elegant Sisters tree requires at least ${elegantSistersMemberCapacity} member positions.`)
+    }
     const { data: members, error: memberError } = await client.from('members')
       .select('sort_order')
       .eq('group_id', groupId)
@@ -283,12 +288,15 @@ async function handleAdminRequest(request, response, url) {
     if (!fullName || !slug) throw new ApiError(400, 'Enter a member name that includes letters or numbers.')
     if (!Number.isInteger(treeRank) || treeRank < 1) throw new ApiError(400, 'Enter a valid tree rank.')
     const { data: group, error: groupError } = await client.from('groups')
-      .select('member_count')
+      .select('slug, member_count')
       .eq('id', groupId)
       .maybeSingle()
     if (groupError) throw new ApiError(502, groupError.message)
     if (!group) throw new ApiError(404, 'The selected group was not found.')
-    if (treeRank > group.member_count) throw new ApiError(400, `Tree rank must be between 1 and ${group.member_count}.`)
+    const memberCapacity = group.slug === elegantSistersGroupSlug
+      ? Math.max(group.member_count, elegantSistersMemberCapacity)
+      : group.member_count
+    if (treeRank > memberCapacity) throw new ApiError(400, `Tree rank must be between 1 and ${memberCapacity}.`)
     const { data: existingRank, error: rankError } = await client.from('members')
       .select('id')
       .eq('group_id', groupId)
