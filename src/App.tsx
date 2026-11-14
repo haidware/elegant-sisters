@@ -982,6 +982,10 @@ function TreeExport({ group, members, photos, onClose }: { group: Group; members
       ])
       setCaptureLayout(true)
       await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()))
+      if (posterRef.current) {
+        posterRef.current.style.transform = 'none'
+        await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()))
+      }
       const preview = posterPreviewRef.current
       if (preview) {
         previewOverflow = preview.style.overflow
