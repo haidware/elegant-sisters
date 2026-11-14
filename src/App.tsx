@@ -1050,6 +1050,9 @@ function TreeExport({ group, members, photos, onClose }: { group: Group; members
   }, [onClose, working])
 
   const ready = members.length > 0
+  const exportTiers = buildMemberTreeTiers(members, group.member_count)
+    .map((tier) => ({ ...tier, members: tier.members.filter((slot) => slot.member !== null) }))
+    .filter((tier) => tier.centerLabel || tier.members.length > 0)
 
   return (
     <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget && !working) onClose() }} role="presentation">
@@ -1077,10 +1080,10 @@ function TreeExport({ group, members, photos, onClose }: { group: Group; members
                 <small>ROOTED IN COMMUNITY · GROWING TOGETHER</small>
               </div>
               <div className="poster-members">
-                {buildMemberTreeTiers(members, group.member_count).map((tier, tierIndex) => (
+                {exportTiers.map((tier, tierIndex) => (
                   <div className="poster-tier" key={tierIndex}>
                     {tier.centerLabel && <div className="poster-group-sign" style={{ gridColumn: '3 / 6' }}>{group.name}</div>}
-                    {tier.members.map(({ member, rank }, index) => member ? (
+                    {tier.members.map(({ member, rank }, index) => member && (
                       <div className="poster-member" key={member.id} style={{ gridColumn: getTreeTierColumn(index, tier.members.length, tier.centerLabel) }}>
                         <div className="poster-portrait">
                           {member.portrait_url || photos[member.id] ? <img alt="" crossOrigin="anonymous" src={member.portrait_url || photos[member.id]} /> : <Camera size={20} />}
@@ -1088,10 +1091,6 @@ function TreeExport({ group, members, photos, onClose }: { group: Group; members
                         </div>
                         <strong>{member.full_name}</strong>
                         <small>{member.role_title || 'Member'}</small>
-                      </div>
-                    ) : (
-                      <div aria-label={`Available member position ${rank}`} className="poster-member is-empty" key={`slot-${rank}`} style={{ gridColumn: getTreeTierColumn(index, tier.members.length, tier.centerLabel) }}>
-                        <div className="poster-portrait"><Camera size={20} /><span>{rank}</span></div>
                       </div>
                     ))}
                   </div>
