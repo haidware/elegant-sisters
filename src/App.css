@@ -345,7 +345,7 @@
 .login-back { display: flex; justify-content: center; margin-top: 21px; }
 
 .modal-backdrop { position: fixed; z-index: 30; inset: 0; padding: 28px; display: grid; place-items: center; background: rgba(23, 38, 29, .72); }
-.export-modal { width: min(100%, 1050px); max-height: min(94vh, 1050px); padding: 25px; display: flex; flex-direction: column; border: 1px solid #e5dcc9; background: #fcfaf6; box-shadow: var(--shadow); }
+.export-modal { box-sizing: border-box; width: min(100%, 1050px); max-width: 100%; min-width: 0; max-height: min(94vh, 1050px); padding: 25px; display: flex; flex-direction: column; border: 1px solid #e5dcc9; background: #fcfaf6; box-shadow: var(--shadow); }
 .modal-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; padding-bottom: 18px; }
 .modal-heading h2 { margin: 7px 0 4px; font-size: 30px; }
 .modal-heading p { color: var(--muted); font-size: 10px; }
