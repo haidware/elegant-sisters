@@ -981,7 +981,7 @@ function PhotoLightbox({
 const treePosterWidth = 1400
 const treePosterHeight = 990
 const elegantTreePosterWidth = 768
-const elegantTreePosterHeight = 1240
+const elegantTreePosterHeight = 1600
 
 function TreeExport({ group, members, photos, onClose }: { group: Group; members: Member[]; photos: Record<string, string>; onClose: () => void }) {
   const posterRef = useRef<HTMLDivElement>(null)
@@ -1157,10 +1157,10 @@ function TreeExport({ group, members, photos, onClose }: { group: Group; members
               <div className="poster-members">
                 {exportTiers.map((tier, tierIndex) => (
                   <div className={tier.centerLabel && !tier.members.length ? 'poster-tier is-sign-only' : 'poster-tier'} key={tierIndex}>
-                    {tier.centerLabel && <div className="poster-group-sign" style={{ gridColumn: '3 / 6', gridRow: 1 }}>{group.name}</div>}
+                    {tier.centerLabel && !isElegantTree && <div className="poster-group-sign" style={{ gridColumn: '3 / 6', gridRow: 1 }}>{group.name}</div>}
                     {tier.members.map(({ member, rank }, index) => (
                       member ? (
-                        <div className="poster-member" key={member.id} style={{ gridColumn: getTreeTierColumn(index, tier.members.length, tier.centerLabel), gridRow: 1 }}>
+                        <div className="poster-member" key={member.id} style={{ gridColumn: getTreeTierColumn(index, tier.members.length, tier.centerLabel && !isElegantTree), gridRow: 1 }}>
                           <div className="poster-portrait">
                             {member.portrait_url || photos[member.id] ? <img alt="" crossOrigin="anonymous" src={member.portrait_url || photos[member.id]} /> : <Camera size={20} />}
                             <span>{rank}</span>
@@ -1169,7 +1169,7 @@ function TreeExport({ group, members, photos, onClose }: { group: Group; members
                           <small>{member.role_title || 'Member'}</small>
                         </div>
                       ) : isElegantTree ? (
-                        <div aria-label={`Open position ${rank}`} className="poster-member is-empty" key={`slot-${rank}`} style={{ gridColumn: getTreeTierColumn(index, tier.members.length, tier.centerLabel), gridRow: 1 }}>
+                        <div aria-label={`Open position ${rank}`} className="poster-member is-empty" key={`slot-${rank}`} style={{ gridColumn: getTreeTierColumn(index, tier.members.length, tier.centerLabel && !isElegantTree), gridRow: 1 }}>
                           <div className="poster-portrait"><Camera size={17} /><span>{rank}</span></div>
                           <strong>Open position</strong>
                           <small>Admin to add details</small>
@@ -1179,6 +1179,7 @@ function TreeExport({ group, members, photos, onClose }: { group: Group; members
                   </div>
                 ))}
               </div>
+              {isElegantTree && <div className="poster-root-label">{group.name}</div>}
               <div className="poster-footer">A COMMUNITY OF STORIES &amp; CONNECTIONS</div>
             </div>
           </div>

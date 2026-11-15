@@ -361,20 +361,21 @@
 .tree-poster.is-elegant-sisters > .poster-tree-artwork { position: absolute; z-index: 0; inset: 0; width: 100%; height: 100%; object-fit: fill; opacity: .82; pointer-events: none; }
 .tree-poster.is-elegant-sisters > :not(.poster-tree-artwork) { position: relative; z-index: 1; }
 .tree-poster.is-elegant-sisters .poster-title, .tree-poster.is-elegant-sisters .poster-footer { display: none; }
-.tree-poster.is-elegant-sisters .poster-members { min-height: 0; flex: 1; justify-content: space-between; gap: 0; }
+.tree-poster.is-elegant-sisters .poster-members { box-sizing: border-box; min-height: 0; flex: 1; justify-content: space-between; gap: 0; padding-bottom: 110px; }
 .tree-poster.is-elegant-sisters .poster-tier { flex: 1; min-height: 0; gap: 0 2px; }
 .tree-poster.is-elegant-sisters .poster-tier::before,
 .tree-poster.is-elegant-sisters .poster-tier::after,
 .tree-poster.is-elegant-sisters .poster-tier > .poster-member::before { display: none; }
 .tree-poster.is-elegant-sisters .poster-tier > .poster-member:only-child { grid-column: 3 / 6 !important; }
 .tree-poster.is-elegant-sisters .poster-member { box-sizing: border-box; padding: 0 2px 3px; }
-.tree-poster.is-elegant-sisters .poster-portrait { width: 82px; height: 82px; padding: 3px; margin-bottom: 3px; border: 3px double #dc9d25; box-shadow: 0 0 0 2px #193c26, 0 0 0 4px rgba(238, 184, 45, .68), 0 3px 6px rgba(35, 44, 27, .2); }
+.tree-poster.is-elegant-sisters .poster-portrait { width: 100px; height: 100px; padding: 3px; margin-bottom: 3px; border: 3px double #dc9d25; box-shadow: 0 0 0 2px #193c26, 0 0 0 4px rgba(238, 184, 45, .68), 0 3px 6px rgba(35, 44, 27, .2); }
 .tree-poster.is-elegant-sisters .poster-portrait > span { top: -6px; left: -6px; width: 18px; height: 18px; border: 2px solid #e8bb39; outline: 1px solid #14261a; font-size: 8px; }
-.tree-poster.is-elegant-sisters .poster-member > strong { box-sizing: border-box; width: 100%; max-width: 100%; max-height: 4.4em; min-height: 2.2em; padding: 2px 3px; display: flex; align-items: center; justify-content: center; overflow: hidden; border-radius: 6px; font-size: 12px; line-height: 1.1; text-align: center; overflow-wrap: anywhere; word-break: break-word; }
+.tree-poster.is-elegant-sisters .poster-member > strong { box-sizing: border-box; width: 100%; max-width: 100%; max-height: 4.4em; min-height: 2.2em; padding: 2px 3px; display: flex; align-items: center; justify-content: center; overflow: hidden; border-radius: 6px; font-size: 14px; line-height: 1.1; text-align: center; overflow-wrap: anywhere; word-break: break-word; }
 .tree-poster.is-elegant-sisters .poster-member > small { display: none; }
 .tree-poster.is-elegant-sisters .poster-member.is-empty { opacity: .78; }
 .tree-poster.is-elegant-sisters .poster-member.is-empty .poster-portrait { border-style: dashed; background: rgba(255, 253, 247, .84); }
 .tree-poster.is-elegant-sisters .poster-group-sign { min-height: 64px; padding: 8px; border: 3px double #e7bd37; border-radius: 24px; outline: 1px solid #193c26; outline-offset: -7px; box-shadow: 0 0 0 3px rgba(201, 145, 38, .52); font-size: 12px; letter-spacing: .06em; }
+.tree-poster.is-elegant-sisters .poster-root-label { position: absolute; z-index: 2; bottom: 35px; left: 50%; box-sizing: border-box; width: min(76%, 520px); min-height: 54px; padding: 8px 14px; display: grid; place-items: center; border: 3px double #e7bd37; border-radius: 28px; outline: 1px solid #193c26; outline-offset: -7px; background: linear-gradient(180deg, #25553a, #102d1f); box-shadow: 0 0 0 3px rgba(201, 145, 38, .52); color: #fff7df; font: 600 15px/1.1 var(--serif); letter-spacing: .06em; text-align: center; text-transform: uppercase; transform: translateX(-50%); }
 .poster-title { text-align: center; padding: 5px 0 22px; }
 .poster-flourish { display: block; color: #ad8c4c; font: 14px/1.4 var(--serif); letter-spacing: .4em; }
 .poster-title > p { margin: 6px 0 1px; color: #997941; font: 600 11px/1.2 'DM Sans', Arial, sans-serif; letter-spacing: .29em; }
