@@ -981,7 +981,7 @@ function PhotoLightbox({
 const treePosterWidth = 1400
 const treePosterHeight = 990
 const elegantTreePosterWidth = 768
-const elegantTreePosterHeight = 1120
+const elegantTreePosterHeight = 1240
 
 function TreeExport({ group, members, photos, onClose }: { group: Group; members: Member[]; photos: Record<string, string>; onClose: () => void }) {
   const posterRef = useRef<HTMLDivElement>(null)
