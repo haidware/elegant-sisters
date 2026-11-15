@@ -1145,7 +1145,7 @@ function TreeExport({ group, members, photos, onClose }: { group: Group; members
               style={{ height: posterHeight, transform: captureLayout ? 'none' : `scale(${previewScale})`, width: posterWidth }}
             >
               {isElegantTree && (
-                <img alt="" aria-hidden="true" className="poster-tree-artwork" crossOrigin="anonymous" src="/elegant-sisters-tree.svg?v=3" />
+                <img alt="" aria-hidden="true" className="poster-tree-artwork" crossOrigin="anonymous" src="/elegant-sisters-tree.svg?v=4" />
               )}
               <div className="poster-title">
                 <span className="poster-flourish">✦ &nbsp; ✦ &nbsp; ✦</span>

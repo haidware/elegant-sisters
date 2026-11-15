@@ -94,7 +94,7 @@
 .tree-roots { display: flex; justify-content: center; align-items: center; gap: 15px; width: 185px; margin: 29px auto 0; color: #83966d; }
 .tree-roots span { height: 1px; flex: 1; background: #d9d4c2; }
 .members-section.is-elegant-sisters { max-width: 1540px; padding-right: clamp(24px, 4vw, 70px); padding-left: clamp(24px, 4vw, 70px); }
-.tree-wrap.is-elegant-sisters { box-sizing: border-box; aspect-ratio: 768 / 800; padding: clamp(12px, 2.2vw, 31px) clamp(12px, 2.6vw, 36px); display: flex; flex-direction: column; border: 0; background: #fffaf0 url('/elegant-sisters-tree.svg?v=3') center / 100% 100% no-repeat; }
+.tree-wrap.is-elegant-sisters { box-sizing: border-box; aspect-ratio: 768 / 800; padding: clamp(12px, 2.2vw, 31px) clamp(12px, 2.6vw, 36px); display: flex; flex-direction: column; border: 0; background: #fffaf0 url('/elegant-sisters-tree.svg?v=4') center / 100% 100% no-repeat; }
 .tree-wrap.is-elegant-sisters > .tree-canopy { display: none; }
 .tree-wrap.is-elegant-sisters .member-tree { width: 100%; max-width: 100%; min-height: 0; flex: 1; justify-content: space-between; gap: 0; }
 .tree-wrap.is-elegant-sisters .member-tree-tier { min-height: 0; flex: 1; gap: 0 4px; align-items: center; }
@@ -367,6 +367,7 @@
 .tree-poster.is-elegant-sisters .poster-tier::after,
 .tree-poster.is-elegant-sisters .poster-tier > .poster-member::before { display: none; }
 .tree-poster.is-elegant-sisters .poster-tier > .poster-member:only-child { grid-column: 3 / 6 !important; }
+.tree-poster.is-elegant-sisters .poster-tier:first-child > .poster-member { transform: translateY(12px); }
 .tree-poster.is-elegant-sisters .poster-member { box-sizing: border-box; padding: 0 2px 3px; }
 .tree-poster.is-elegant-sisters .poster-portrait { width: 100px; height: 100px; padding: 3px; margin-bottom: 3px; border: 3px double #dc9d25; box-shadow: 0 0 0 2px #193c26, 0 0 0 4px rgba(238, 184, 45, .68), 0 3px 6px rgba(35, 44, 27, .2); }
 .tree-poster.is-elegant-sisters .poster-portrait > span { top: -6px; left: -6px; width: 18px; height: 18px; border: 2px solid #e8bb39; outline: 1px solid #14261a; font-size: 8px; }
